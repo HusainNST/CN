@@ -1,7 +1,7 @@
 # Navodit — Mac 1: private DNS and client
 
 **Lead:** Task B (DNS) and the two DNS failure demonstrations.
-**Mac 1 address in the current table:** 10.144.232.5/24 on en0; gateway 10.144.232.191. Recheck it on lab day.
+**Mac 1 address in the current table:** 10.7.10.22/19 on en0; gateway 10.7.0.1. Recheck it on lab day.
 
 This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number, and replace any IP placeholder if the shared table changes.
 
@@ -44,15 +44,15 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
 3. Create 02_config/dnsmasq-teamX.conf. Use the current IPs from the shared table:
 
        port=53
-       listen-address=127.0.0.1,10.144.232.5
+       listen-address=127.0.0.1,10.7.10.22
        bind-interfaces
        domain-needed
        bogus-priv
        local-ttl=60
-       address=/app.teamX.test/10.144.232.67
-       address=/api.teamX.test/10.144.232.67
+       address=/app.teamX.test/10.7.22.227
+       address=/api.teamX.test/10.7.22.227
 
-   Change teamX to your team number. Change 10.144.232.5 if Mac 1's address changes. Both names must point to Mac 2, not to a backend.
+   Change teamX to your team number. Change 10.7.10.22 if Mac 1's address changes. Both names must point to Mac 2, not to a backend.
 
 - [ ] Check the config syntax. If port 53 is already in use, identify the process before changing anything.
 
@@ -65,7 +65,7 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
 
 - [ ] From another Mac, point Wi-Fi DNS to Mac 1. Do this on at least two client Macs; each owner should save their own proof.
 
-      sudo networksetup -setdnsservers Wi-Fi 10.144.232.5
+      sudo networksetup -setdnsservers Wi-Fi 10.7.10.22
       sudo dscacheutil -flushcache
       sudo killall -HUP mDNSResponder
 
@@ -90,11 +90,11 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
       sudo killall -HUP mDNSResponder
       date
       dig app.teamX.test
-      ping -c 2 10.144.232.67
+      ping -c 2 10.7.22.227
 
 - [ ] Restore Mac 1 as that client's resolver and prove lookup works again.
 
-      sudo networksetup -setdnsservers Wi-Fi 10.144.232.5
+      sudo networksetup -setdnsservers Wi-Fi 10.7.10.22
       sudo dscacheutil -flushcache
       sudo killall -HUP mDNSResponder
       dig app.teamX.test

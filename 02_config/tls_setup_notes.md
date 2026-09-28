@@ -3,7 +3,7 @@
 
 # TLS setup notes (Mac 2 edge)
 
-Mac 2 (`10.144.232.67`) terminates HTTPS for `app.teamX.test` and
+Mac 2 (`10.7.22.227`) terminates HTTPS for `app.teamX.test` and
 `api.teamX.test` with a certificate signed by the team's own root CA. Clients
 trust the root CA once; the server certificate can then be reissued without
 touching any client.
@@ -120,17 +120,17 @@ curl -v https://app.teamX.test/api/status 2>&1 | grep -E "SSL connection|ALPN|su
 curl -sI --http1.1 https://app.teamX.test/api/status | head -1      # HTTP/1.1 200
 curl -sI           https://app.teamX.test/api/status | head -1      # HTTP/2 200
 
-openssl s_client -connect 10.144.232.67:443 -servername app.teamX.test \
+openssl s_client -connect 10.7.22.227:443 -servername app.teamX.test \
   -CAfile teamX-rootCA.crt </dev/null 2>/dev/null | grep -E "Protocol|Verify return"
 # Protocol: TLSv1.3, Verify return code: 0 (ok)
 
 # the certificate nginx serves is the one on disk
-openssl s_client -connect 10.144.232.67:443 -servername app.teamX.test </dev/null 2>/dev/null \
+openssl s_client -connect 10.7.22.227:443 -servername app.teamX.test </dev/null 2>/dev/null \
   | openssl x509 -noout -fingerprint -sha256
 openssl x509 -in app.teamX.test.crt -noout -fingerprint -sha256
 ```
 
-Before Mac 1's DNS is live, add `--resolve app.teamX.test:443:10.144.232.67`
+Before Mac 1's DNS is live, add `--resolve app.teamX.test:443:10.7.22.227`
 to the curl commands. It skips DNS only; SNI and certificate validation still
 use the hostname.
 

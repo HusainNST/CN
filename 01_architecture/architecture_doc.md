@@ -39,18 +39,18 @@ hostname rather than selecting a backend directly.
 
 | Mac   | Person  | Role               | Interface | IPv4            | Prefix / mask         | Gateway          | MAC address         | Listening ports |
 | ----- | ------- | ------------------ | --------- | --------------- | --------------------- | ---------------- | ------------------- | --------------- |
-| Mac 1 | Navodit | DNS + client       | `en0`     | `10.144.232.5`  | `/24 (255.255.255.0)` | `10.144.232.191` | `10:9f:41:bc:ff:5a` | `53 UDP/TCP`    |
-| Mac 2 | Sarvesh | Edge / LB / TLS    | `en0`     | `10.144.232.67` | `/24 (255.255.255.0)` | `10.144.232.191` | `7a:62:d1:c7:63:6c` | `80, 443 TCP`   |
-| Mac 3 | Trishit | Backend A          | `en0`     | `10.144.232.1`  | `/24 (255.255.255.0)` | `10.144.232.191` | `3e:1b:0f:b0:84:64` | `3001 TCP`      |
-| Mac 4 | Husain  | Backend B + client | `en0`     | `10.144.232.15` | `/24 (255.255.255.0)` | `10.144.232.191` | `92:f0:37:09:fa:53` | `3002 TCP`      |
+| Mac 1 | Navodit | DNS + client       | `en0`     | `10.7.10.22`  | `/19 (255.255.224.0)` | `10.7.0.1` | `10:9f:41:bc:ff:5a` | `53 UDP/TCP`    |
+| Mac 2 | Sarvesh | Edge / LB / TLS    | `en0`     | `10.7.22.227` | `/19 (255.255.224.0)` | `10.7.0.1` | `3a:33:4b:89:be:dc` | `80, 443 TCP`   |
+| Mac 3 | Trishit | Backend A          | `en0`     | `10.7.18.190`  | `/19 (255.255.224.0)` | `10.7.0.1` | `be:4f:1d:91:b1:8b` | `3001 TCP`      |
+| Mac 4 | Husain  | Backend B + client | `en0`     | `10.7.24.166` | `/19 (255.255.224.0)` | `10.7.0.1` | `6e:5a:77:e4:01:0c` | `3002 TCP`      |
 
-The listed addresses are recorded snapshots and should be rechecked on the
-project LAN. Trishit's 28 September 2026 output reports `10.144.232.1`, a
-`/24` mask, and gateway `10.144.232.191`. `ifconfig en0` reports MAC
-`3e:1b:0f:b0:84:64`, which matches the LAN neighbor entry for that IP;
-`networksetup` separately reports `10:9f:41:c1:7f:a5` as the Wi-Fi Ethernet
-Address / Wi-Fi ID. Verify which MAC address should be recorded before final
-submission. The full editable table and collection commands are in [ip_table.md](ip_table.md).
+Values recorded on the Rishihood Learners network on 28 September 2026.
+Mac 2's IPv4, `/19` prefix (`255.255.224.0`), gateway `10.7.0.1` and MAC come
+from its own `ifconfig en0` and `route -n get default`. The other three MAC
+addresses are the active Wi-Fi addresses seen in Mac 2's ARP table
+(`arp -n <IP>`); each owner should confirm theirs with `ifconfig en0`.
+Recheck all values if any Mac rejoins or changes network.
+The full editable table and collection commands are in [ip_table.md](ip_table.md).
 
 ## 5. Components and request path
 
@@ -93,7 +93,7 @@ alternates cleanly between the backends. The full config is
 
 | Item | Value |
 | --- | --- |
-| Upstream `teamX_backends` | `10.144.232.1:3001` (A), `10.144.232.15:3002` (B), round-robin |
+| Upstream `teamX_backends` | `10.7.18.190:3001` (A), `10.7.24.166:3002` (B), round-robin |
 | Failover | `max_fails=1 fail_timeout=10s`, `proxy_next_upstream error timeout http_502 http_503`, `proxy_connect_timeout 2s` |
 | Port 80 | `301` redirect to HTTPS |
 | Port 443 | TLS 1.2 and 1.3, HTTP/2 via ALPN, names `app.teamX.test` and `api.teamX.test` |
@@ -139,8 +139,8 @@ The complete system is ready for the review when all of these checks pass:
 
 - The four Macs share the private LAN, their IP table is complete, and the
   ping mesh succeeds.
-- Mac 2 can reach both `http://<MAC3_IP>:3001/api/status` and
-  `http://<MAC4_IP>:3002/api/status`.
+- Mac 2 can reach both `http://10.7.18.190:3001/api/status` and
+  `http://10.7.24.166:3002/api/status`.
 - Clients use Mac 1 for DNS and receive Mac 2's address for `app.teamX.test`.
 - HTTPS succeeds by hostname without `-k`, and repeated requests identify
   both backends.

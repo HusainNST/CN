@@ -1,7 +1,7 @@
 # Sarvesh — Mac 2: edge, load balancer, and TLS
 
 **Lead:** Tasks D and E; edge side of Tasks C and G; support the backend failure demonstrations.
-**Mac 2 address in the current table:** 10.144.232.67/24 on en0; gateway 10.144.232.191. Recheck it on lab day.
+**Mac 2 address in the current table:** 10.7.22.227/19 on en0; gateway 10.7.0.1. Recheck it on lab day.
 
 Replace teamX with the assigned team number and use the current backend addresses from 01_architecture/ip_table.md.
 
@@ -23,23 +23,23 @@ Replace teamX with the assigned team number and use the current backend addresse
     route -n get default | grep -E "gateway|interface"
     networksetup -getinfo Wi-Fi
 
-- [x] Ping Macs 1, 3, and 4. Save a full-window screenshot under 04_evidence/A_lan/. Evidence: 04_evidence/A_lan/A-06_mac2_ping_all.png (0% loss to .5, .1, .15).
-- [ ] For DNS integration, set Mac 2's Wi-Fi DNS server to Mac 1 and flush the cache.
+- [x] Ping Macs 1, 3, and 4. Save a full-window screenshot under 04_evidence/A_lan/. Evidence: 04_evidence/A_lan/A-06_mac2_ping_all.png (0% loss to 10.7.10.22, 10.7.18.190, 10.7.24.166; 28 Sep 16:36).
+- [ ] For DNS integration, set Mac 2's Wi-Fi DNS server to Mac 1 and flush the cache. 28 Sep on Rishihood Learners: resolver set to 10.7.10.22 then 1.1.1.1; dig @10.7.10.22 app.teamX.test returns 10.7.22.227. macOS still holds an earlier cached failure, so the flush is pending.
 
-      sudo networksetup -setdnsservers Wi-Fi 10.144.232.5
+      sudo networksetup -setdnsservers Wi-Fi 10.7.10.22
       sudo dscacheutil -flushcache
       sudo killall -HUP mDNSResponder
       dig app.teamX.test
 
 ## 2. Confirm the backends are reachable — Tasks C and D
 
-- [ ] Ask Trishit and Husain to start their backends, then check both directly from Mac 2. The listener must be reachable on the LAN, and each response must identify its backend.
+- [x] Ask Trishit and Husain to start their backends, then check both directly from Mac 2. The listener must be reachable on the LAN, and each response must identify its backend.
 
       date
       curl -i http://<MAC3_IP>:3001/api/status
       curl -i http://<MAC4_IP>:3002/api/status
 
-   Expected: HTTP 200, X-Backend: A from Mac 3, and X-Backend: B from Mac 4. Save the output under 04_evidence/C_backends/.
+   Expected: HTTP 200, X-Backend: A from Mac 3, and X-Backend: B from Mac 4. Save the output under 04_evidence/C_backends/. Evidence: 04_evidence/C_backends/C-02_mac2_direct_curl_backendA.png, C-06_mac2_direct_curl_backendB.png (28 Sep 16:36).
 
 ## 3. Configure nginx as the HTTPS edge and load balancer — Tasks D and E
 
@@ -100,7 +100,7 @@ Replace teamX with the assigned team number and use the current backend addresse
           }
       }
 
-   Done: 02_config/nginx-teamX.conf (installed as /opt/homebrew/etc/nginx/servers/teamX.conf), upstreams 10.144.232.1:3001 and 10.144.232.15:3002. Evidence: 04_evidence/D_loadbalancing/D-01_mac2_nginx_conf.png.
+   Done: 02_config/nginx-teamX.conf (installed as /opt/homebrew/etc/nginx/servers/teamX.conf), upstreams 10.7.18.190:3001 and 10.7.24.166:3002. Evidence: 04_evidence/D_loadbalancing/D-01_mac2_nginx_conf.png.
 
    Nginx's upstream default is round robin. If port 80/443 cannot be used, change to 8080/8443; the PDF permits this. Use those ports consistently in the URLs, firewall rules, evidence, and demo.
 
@@ -127,7 +127,7 @@ Replace teamX with the assigned team number and use the current backend addresse
         curl -s -D - -o /dev/null https://app.teamX.test/api/status | grep -iE "^HTTP|x-backend|x-upstream"
       done
 
-   Evidence: 04_evidence/D_loadbalancing/D-03_mac2_access_log_alternating.png (run on Mac 2 with --resolve before Mac 1 DNS was live; client-side run pending).
+   Evidence: 04_evidence/D_loadbalancing/D-03_mac2_access_log_alternating.png (run on Mac 2 with --resolve, 28 Sep 16:36; client-side run by name pending).
 
    Save full command output under 04_evidence/D_loadbalancing/. Open the URL in a browser and capture one response from A and one from B if browser evidence is requested.
 
@@ -145,8 +145,8 @@ Replace teamX with the assigned team number and use the current backend addresse
 
 ## 5. Demonstrate backend failures — Task H
 
-- [ ] With Trishit, stop Backend A using Ctrl+C. Send requests through the HTTPS name; nginx should retry Backend B and return success. Capture response headers and nginx log under 04_evidence/H_failures/.
-- [x] Stop both backends. Show that the edge still resolves and completes TLS but returns HTTP 502. Save evidence, then restart both services and verify A/B balancing again. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png; restored 28 Sep and A/B alternation observed (no screenshot).
+- [x] With Trishit, stop Backend A using Ctrl+C. Send requests through the HTTPS name; nginx should retry Backend B and return success. Capture response headers and nginx log under 04_evidence/H_failures/. Evidence: 04_evidence/H_failures/H-06_mac2_one_backend_stopped_edge_log.png (Rishihood Learners, 28 Sep 16:42): six 200s from B, first request retried A then B. Trishit's client view (H-03) and the A restart check are separate.
+- [x] Stop both backends. Show that the edge still resolves and completes TLS but returns HTTP 502. Save evidence, then restart both services and verify A/B balancing again. \1 (Rishihood Learners, 28 Sep 16:41): 502 from nginx, both upstreams refused, then no live upstreams. Both restored 28 Sep 16:44; A/B alternation observed again.
 - [ ] Help Husain demonstrate an unused client destination port and explain the resulting TCP refusal/reset.
 
 ## 6. Before the review

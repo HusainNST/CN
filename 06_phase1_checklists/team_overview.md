@@ -12,12 +12,12 @@ Individual instructions: [Navodit / Mac 1 — DNS and client](navodit_mac1.md), 
 
 | Mac | Person | Role | Current recorded IPv4 | Service/port |
 | --- | --- | --- | --- | --- |
-| Mac 1 | Navodit | DNS + client | 10.144.232.5/24 | dnsmasq, UDP/TCP 53 |
-| Mac 2 | Sarvesh | Edge / load balancer / TLS | 10.144.232.67/24 | nginx, TCP 80/443 |
-| Mac 3 | Trishit | Backend A | 10.144.232.1/24 | Python, TCP 3001 |
-| Mac 4 | Husain | Backend B + client | 10.144.232.15/24 | Python, TCP 3002 |
+| Mac 1 | Navodit | DNS + client | 10.7.10.22/19 | dnsmasq, UDP/TCP 53 |
+| Mac 2 | Sarvesh | Edge / load balancer / TLS | 10.7.22.227/19 | nginx, TCP 80/443 |
+| Mac 3 | Trishit | Backend A | 10.7.18.190/19 | Python, TCP 3001 |
+| Mac 4 | Husain | Backend B + client | 10.7.24.166/19 | Python, TCP 3002 |
 
-Recorded default gateway for all: 10.144.232.191. Recheck every value on the final LAN. Mac 3's ifconfig MAC is recorded as 3e:1b:0f:b0:84:64 and differs from the Wi-Fi ID printed by networksetup; Trishit should confirm the active LAN MAC.
+Recorded on the Rishihood Learners network, 28 Sep 2026. Default gateway for all: 10.7.0.1. Recheck every value if the network changes.
 
 ### What is already in the first commit on main
 
@@ -52,7 +52,7 @@ For each demo: record the failure, explain the layer, restore the working config
 - [ ] **Wrong DNS server — Navodit/client:** lookup fails but direct IP reachability remains. Save failure and recovery under 04_evidence/H_failures/.
 - [ ] **Wrong DNS record — Navodit:** lookup returns an incorrect address; show the wrong destination, restore Mac 2's IP, and verify the correct answer.
 - [ ] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns.
-- [x] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png; restored 28 Sep, A/B observed.
+- [x] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png (Rishihood Learners, 28 Sep 16:41). Both restored 28 Sep 16:44; A/B alternation observed again.
 - [ ] **Wrong destination port — Husain:** correct host, unused port; show RST/refusal or timeout if filtered, explain IP versus port, restore and recheck 443.
 
 ## Evidence and submission folder

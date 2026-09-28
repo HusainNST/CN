@@ -3,11 +3,11 @@ digraph topology {
     node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, margin="0.18,0.12", color="#263238"];
     edge [fontname="Helvetica", fontsize=9, color="#546e7a"];
 
-    network [label="Private router /\nphone hotspot\nLAN: <SUBNET>/24", fillcolor="#fff3e0"];
-    mac1 [label="Mac 1 — Navodit\nDNS + client\n<MAC1_IP>\n53 UDP/TCP", fillcolor="#e3f2fd"];
-    mac2 [label="Mac 2 — Sarvesh\nEdge / LB / TLS\n<MAC2_IP>\n80, 443 TCP", fillcolor="#e8eaf6"];
-    mac3 [label="Mac 3 — Trishit\nBackend A\n<MAC3_IP>\n3001 TCP", fillcolor="#e8f5e9"];
-    mac4 [label="Mac 4 — Husain\nBackend B + client\n<MAC4_IP>\n3002 TCP", fillcolor="#fce4ec"];
+    network [label="Rishihood Learners Wi-Fi\nLAN 10.7.0.0/19\ngateway 10.7.0.1", fillcolor="#fff3e0"];
+    mac1 [label="Mac 1 — Navodit\nDNS + client\n10.7.10.22\n53 UDP/TCP", fillcolor="#e3f2fd"];
+    mac2 [label="Mac 2 — Sarvesh\nEdge / LB / TLS\n10.7.22.227\n80, 443 TCP", fillcolor="#e8eaf6"];
+    mac3 [label="Mac 3 — Trishit\nBackend A\n10.7.18.190\n3001 TCP", fillcolor="#e8f5e9"];
+    mac4 [label="Mac 4 — Husain\nBackend B + client\n10.7.24.166\n3002 TCP", fillcolor="#fce4ec"];
     cloud [label="Cloud equivalent\nRoute 53 → ALB → EC2 A/B", fillcolor="#f3e5f5"];
 
     network -> mac1 [label="Wi-Fi / Ethernet"];

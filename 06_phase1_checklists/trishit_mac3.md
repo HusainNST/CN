@@ -1,7 +1,7 @@
 # Trishit — Mac 3: Backend A, caching, and architecture package
 
 **Lead:** Backend A in Task C, Task F (caching), architecture document and package, and the one-backend-stopped demonstration.
-**Mac 3 address in the current table:** 10.144.232.1/24 on en0; gateway 10.144.232.191. Recheck on lab day.
+**Mac 3 address in the current table:** 10.7.18.190/19 on en0; gateway 10.7.0.1. Recheck on lab day.
 
 The shared source is 03_backend_code/server.py. It runs as A or B depending on BACKEND_ID and PORT. Replace teamX with the assigned team number where it appears in commands and diagrams.
 
@@ -10,7 +10,7 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
 ## 1. Join and check the LAN — Task A
 
 - [x] Mac 3's current recorded IP, prefix, gateway, and ifconfig MAC are in 01_architecture/architecture_doc.md and 01_architecture/ip_table.md.
-- [ ] Recheck Mac 3 on the lab LAN. ifconfig reported MAC 3e:1b:0f:b0:84:64, while networksetup reported Wi-Fi ID 10:9f:41:c1:7f:a5. Confirm which identifier is active and correct the shared table if needed.
+- [ ] Recheck Mac 3 on the lab LAN. ifconfig reported MAC be:4f:1d:91:b1:8b, while networksetup reported Wi-Fi ID 10:9f:41:c1:7f:a5. Confirm which identifier is active and correct the shared table if needed.
 - [ ] Label the terminal, keep the Mac awake, and ping Macs 1, 2, and 4.
 
       export PS1="[Mac3-BackendA-Trishit] %~ %# "
@@ -20,9 +20,9 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
       ipconfig getifaddr en0
       ifconfig en0 | grep -E "ether|inet "
       route -n get default | grep -E "gateway|interface"
-      ping -c 4 <MAC1_IP>
-      ping -c 4 <MAC2_IP>
-      ping -c 4 <MAC4_IP>
+      ping -c 4 10.7.10.22
+      ping -c 4 10.7.22.227
+      ping -c 4 10.7.24.166
 
    Save Mac 3's network and ping evidence under 04_evidence/A_lan/.
 
@@ -42,7 +42,7 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
 
    The listener should be *:3001 or 0.0.0.0:3001, not only 127.0.0.1. Save a full-window screenshot under 04_evidence/C_backends/.
 
-- [ ] Ask Sarvesh to run curl -i http://<MAC3_IP>:3001/api/status from Mac 2. Confirm HTTP 200, X-Backend: A, and JSON showing backend A. Save the result under 04_evidence/C_backends/.
+- [ ] Ask Sarvesh to run curl -i http://10.7.18.190:3001/api/status from Mac 2. Confirm HTTP 200, X-Backend: A, and JSON showing backend A. Save the result under 04_evidence/C_backends/.
 
 ## 3. Demonstrate HTTP caching — Task F
 

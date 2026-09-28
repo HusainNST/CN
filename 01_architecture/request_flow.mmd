@@ -1,10 +1,10 @@
 sequenceDiagram
   participant C as Client (Mac 4)
-  participant D as DNS (Mac 1 dnsmasq)
-  participant E as Edge (Mac 2 nginx)
+  participant D as DNS (Mac 1 dnsmasq, 10.7.10.22)
+  participant E as Edge (Mac 2 nginx, 10.7.22.227)
   participant B as Backend A/B (Mac 3/4)
   C->>D: DNS query A app.teamX.test (UDP 53)
-  D-->>C: A = MAC2_IP, TTL 60
+  D-->>C: A = 10.7.22.227 (Mac 2), TTL 60
   C->>E: TCP SYN / SYN-ACK / ACK (port 443)
   C->>E: TLS ClientHello (SNI) ... Finished
   C->>E: HTTPS GET /api/status (HTTP/2, encrypted)
