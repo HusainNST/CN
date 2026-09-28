@@ -9,12 +9,12 @@ Replace teamX with the assigned team number and use the current backend addresse
 
 ## 1. Join and check the LAN — Task A
 
-- [ ] Join the same private LAN as the other three Macs. Label the terminal and keep the Mac awake during the demo.
+- [x] Join the same private LAN as the other three Macs. Label the terminal and keep the Mac awake during the demo. Evidence: 04_evidence/A_lan/A-02_mac2_network_info.png (prompt [Mac2-Edge-Sarvesh], 28 Sep).
 
     export PS1="[Mac2-Edge-TLS-Sarvesh] %~ %# "
     caffeinate -dims &
 
-- [ ] Record Mac 2's current IP, mask, gateway, interface, and Wi-Fi MAC in the shared IP table.
+- [x] Record Mac 2's current IP, mask, gateway, interface, and Wi-Fi MAC in the shared IP table. Evidence: 01_architecture/ip_table.md, 04_evidence/A_lan/A-02_mac2_network_info.png.
 
     date
     networksetup -listallhardwareports | grep -A2 "Wi-Fi"
@@ -23,7 +23,7 @@ Replace teamX with the assigned team number and use the current backend addresse
     route -n get default | grep -E "gateway|interface"
     networksetup -getinfo Wi-Fi
 
-- [ ] Ping Macs 1, 3, and 4. Save a full-window screenshot under 04_evidence/A_lan/.
+- [x] Ping Macs 1, 3, and 4. Save a full-window screenshot under 04_evidence/A_lan/. Evidence: 04_evidence/A_lan/A-06_mac2_ping_all.png (0% loss to .5, .1, .15).
 - [ ] For DNS integration, set Mac 2's Wi-Fi DNS server to Mac 1 and flush the cache.
 
       sudo networksetup -setdnsservers Wi-Fi 10.144.232.5
@@ -43,11 +43,11 @@ Replace teamX with the assigned team number and use the current backend addresse
 
 ## 3. Configure nginx as the HTTPS edge and load balancer — Tasks D and E
 
-- [ ] Install nginx and OpenSSL 3 if needed.
+- [x] Install nginx and OpenSSL 3 if needed. nginx 1.31.6 and OpenSSL 3.6.3 via Homebrew.
 
       brew install nginx openssl@3
 
-- [ ] Create a server certificate for app.teamX.test. The PDF permits a self-signed certificate. A local CA is another option only with faculty approval. The certificate must contain a Subject Alternative Name for the hostname.
+- [x] Create a server certificate for app.teamX.test. The PDF permits a self-signed certificate. A local CA is another option only with faculty approval. The certificate must contain a Subject Alternative Name for the hostname.
 
       mkdir -p "$HOME/cn-project/tls"
       openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 365 \
@@ -60,7 +60,9 @@ Replace teamX with the assigned team number and use the current backend addresse
 
    Keep the private key on Mac 2. Give clients only the public .crt file. Save the certificate creation commands and certificate setup notes in 02_config/.
 
-- [ ] Add an nginx configuration. Put the upstream and server blocks inside the nginx http block. Replace every team name, IP, and certificate path with the current values.
+   Done with the team local CA option: server cert signed by teamX Local Root CA, SAN app.teamX.test and api.teamX.test, keys kept on Mac 2. Evidence: 02_config/tls_setup_notes.md, 02_config/teamX-rootCA.crt, 04_evidence/E_tls/E-01_mac2_ca_and_cert_created.png.
+
+- [x] Add an nginx configuration. Put the upstream and server blocks inside the nginx http block. Replace every team name, IP, and certificate path with the current values.
 
    Define an access log format inside http{} so requests show the selected upstream:
 
@@ -98,15 +100,19 @@ Replace teamX with the assigned team number and use the current backend addresse
           }
       }
 
+   Done: 02_config/nginx-teamX.conf (installed as /opt/homebrew/etc/nginx/servers/teamX.conf), upstreams 10.144.232.1:3001 and 10.144.232.15:3002. Evidence: 04_evidence/D_loadbalancing/D-01_mac2_nginx_conf.png.
+
    Nginx's upstream default is round robin. If port 80/443 cannot be used, change to 8080/8443; the PDF permits this. Use those ports consistently in the URLs, firewall rules, evidence, and demo.
 
-- [ ] Test the full nginx configuration, then start or reload nginx. Find the active config path with nginx -T if you are unsure where Homebrew loads it from.
+- [x] Test the full nginx configuration, then start or reload nginx. Find the active config path with nginx -T if you are unsure where Homebrew loads it from.
 
       nginx -t
       sudo nginx
       sudo nginx -s reload
 
    The config test should say syntax is okay and test is successful. Confirm nginx listens on the selected ports.
+
+   Evidence: 04_evidence/D_loadbalancing/D-02_mac2_nginx_t_and_listen.png (syntax ok, listening on 80 and 443).
 
 - [ ] From a client using Mac 1 DNS, request the service by name.
 
@@ -115,11 +121,13 @@ Replace teamX with the assigned team number and use the current backend addresse
 
    Expected: HTTPS succeeds without -k and the response includes X-Backend and X-Upstream-Addr.
 
-- [ ] Send six separate requests. Confirm that both A and B appear in X-Backend and the upstream address changes between Mac 3:3001 and Mac 4:3002.
+- [x] Send six separate requests. Confirm that both A and B appear in X-Backend and the upstream address changes between Mac 3:3001 and Mac 4:3002.
 
       for i in 1 2 3 4 5 6; do
         curl -s -D - -o /dev/null https://app.teamX.test/api/status | grep -iE "^HTTP|x-backend|x-upstream"
       done
+
+   Evidence: 04_evidence/D_loadbalancing/D-03_mac2_access_log_alternating.png (run on Mac 2 with --resolve before Mac 1 DNS was live; client-side run pending).
 
    Save full command output under 04_evidence/D_loadbalancing/. Open the URL in a browser and capture one response from A and one from B if browser evidence is requested.
 
@@ -130,18 +138,20 @@ Replace teamX with the assigned team number and use the current backend addresse
       sudo security add-trusted-cert -d -r trustRoot \
         -k /Library/Keychains/System.keychain ~/Downloads/app.teamX.test.crt
 
+   Note: this setup uses the team CA, so clients trust 02_config/teamX-rootCA.crt (not the server .crt). See 02_config/tls_setup_notes.md section 5.
+
 - [ ] Ask each client to run curl -v https://app.teamX.test/api/status without -k. It must report successful certificate verification. Save client output under 04_evidence/E_tls/.
 - [ ] Explain TLS termination: the client has TLS with nginx; nginx makes a separate plain HTTP connection to the backend.
 
 ## 5. Demonstrate backend failures — Task H
 
 - [ ] With Trishit, stop Backend A using Ctrl+C. Send requests through the HTTPS name; nginx should retry Backend B and return success. Capture response headers and nginx log under 04_evidence/H_failures/.
-- [ ] Stop both backends. Show that the edge still resolves and completes TLS but returns HTTP 502. Save evidence, then restart both services and verify A/B balancing again.
+- [x] Stop both backends. Show that the edge still resolves and completes TLS but returns HTTP 502. Save evidence, then restart both services and verify A/B balancing again. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png; restored 28 Sep and A/B alternation observed (no screenshot).
 - [ ] Help Husain demonstrate an unused client destination port and explain the resulting TCP refusal/reset.
 
 ## 6. Before the review
 
-- [ ] Put the final nginx config and TLS setup notes in 02_config/.
+- [x] Put the final nginx config and TLS setup notes in 02_config/. Evidence: 02_config/nginx-teamX.conf, 02_config/tls_setup_notes.md.
 - [ ] Present demo steps 4 and 5: trusted HTTPS by name, then responses from both backends.
 - [ ] Explain round robin, X-Backend, X-Upstream-Addr, TLS trust, TLS termination, and 502.
 - [ ] Check off finished items in 06_phase1_checklists/team_overview.md and add evidence paths.

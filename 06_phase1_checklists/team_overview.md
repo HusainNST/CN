@@ -52,7 +52,7 @@ For each demo: record the failure, explain the layer, restore the working config
 - [ ] **Wrong DNS server — Navodit/client:** lookup fails but direct IP reachability remains. Save failure and recovery under 04_evidence/H_failures/.
 - [ ] **Wrong DNS record — Navodit:** lookup returns an incorrect address; show the wrong destination, restore Mac 2's IP, and verify the correct answer.
 - [ ] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns.
-- [ ] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service.
+- [x] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png; restored 28 Sep, A/B observed.
 - [ ] **Wrong destination port — Husain:** correct host, unused port; show RST/refusal or timeout if filtered, explain IP versus port, restore and recheck 443.
 
 ## Evidence and submission folder

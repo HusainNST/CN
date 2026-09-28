@@ -85,6 +85,30 @@ request reaches an upstream. `/api/cached` returns the same representation
 and ETag from both backends, with `Cache-Control: public, max-age=60`. A
 conditional request with a matching `If-None-Match` receives `304 Not Modified`.
 
+### Edge configuration (Mac 2)
+
+Mac 2 runs nginx 1.31.6 with `worker_processes 1`, so one round-robin counter
+alternates cleanly between the backends. The full config is
+[nginx-teamX.conf](../02_config/nginx-teamX.conf).
+
+| Item | Value |
+| --- | --- |
+| Upstream `teamX_backends` | `10.144.232.1:3001` (A), `10.144.232.15:3002` (B), round-robin |
+| Failover | `max_fails=1 fail_timeout=10s`, `proxy_next_upstream error timeout http_502 http_503`, `proxy_connect_timeout 2s` |
+| Port 80 | `301` redirect to HTTPS |
+| Port 443 | TLS 1.2 and 1.3, HTTP/2 via ALPN, names `app.teamX.test` and `api.teamX.test` |
+| Upstream hop | HTTP/1.1 inside the LAN with `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` |
+| Response headers | `X-Edge: mac2-nginx`, `X-Upstream-Addr` (backend that answered) |
+| Access log | `teamX_access.log` records `upstream=<addr> (<status>)` and request time |
+
+| Certificate | Details |
+| --- | --- |
+| `teamX Local Root CA` | RSA 4096, SHA-256, 365 days, `CA:TRUE`, `keyCertSign, cRLSign` |
+| `app.teamX.test` | RSA 2048, SHA-256, 365 days, SAN `app.teamX.test` and `api.teamX.test`, EKU `serverAuth` |
+
+Generation, trust and validation steps are in
+[tls_setup_notes.md](../02_config/tls_setup_notes.md).
+
 ## 7. TLS and network security
 
 The team CA signs the edge certificate for `app.teamX.test`. Each client trusts
