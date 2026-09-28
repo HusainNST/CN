@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant C as Client (Mac 4)
+  participant D as DNS (Mac 1 dnsmasq)
+  participant E as Edge (Mac 2 nginx)
+  participant B as Backend A/B (Mac 3/4)
+  C->>D: DNS query A app.teamX.test (UDP 53)
+  D-->>C: A = MAC2_IP, TTL 60
+  C->>E: TCP SYN / SYN-ACK / ACK (port 443)
+  C->>E: TLS ClientHello (SNI) ... Finished
+  C->>E: HTTPS GET /api/status (HTTP/2, encrypted)
+  E->>B: HTTP/1.1 GET /api/status (port 3001 or 3002)
+  B-->>E: 200 + X-Backend: A|B
+  E-->>C: 200 over TLS
