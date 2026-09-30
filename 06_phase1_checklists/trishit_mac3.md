@@ -62,7 +62,7 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
 
       curl -sI https://app.teamX.test/api/status
 
-- [x] Save the 200/ETag, 304, and no-store output under 04_evidence/F_caching/. Optionally use browser Developer Tools → Network to show a fresh browser cache hit or revalidation. Evidence: `F-01_cache_revalidation.png`. The optional `F-02_browser_cache_hit.png` is a styled summary page, not a Developer Tools screenshot, and it tests 127.0.0.1:3001 directly instead of the edge. Replace it with a real Network panel screenshot or remove it.
+- [x] Save the 200/ETag, 304, and no-store output under 04_evidence/F_caching/. Evidence: `F-01_cache_revalidation.png`. Replaced `F-02_browser_cache_hit.png` on 30 Sep with a real Chrome Network-panel screenshot: HTTPS `/api/cached`, HTTP 200 network fetch followed by HTTP 200 `(disk cache)`, 0 ms, with Disable cache unchecked. Chrome uses an isolated hostname mapping to 10.7.22.227 and the trusted team CA; this capture proves caching, not DNS resolution.
 - [ ] Explain: a fresh max-age response can be reused without contacting the server; a conditional request sends If-None-Match and may receive 304 with no body; an uncached request receives a full 200 response.
 
 ## 4. Demonstrate stopping one backend — Task H
@@ -74,7 +74,7 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
         curl -s -D - -o /dev/null https://app.teamX.test/api/status | grep -iE "^HTTP|x-backend"
       done
 
-- [ ] Ask Sarvesh to save the nginx log showing the failed A attempt and retry to B. Save client proof under 04_evidence/H_failures/. Partial: edge logs saved (`H-06_mac2_one_backend_stopped_edge_log.png`; `04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png` shows `(502, 200)` at 13:55:54 and "Connection refused" for 10.7.18.190:3001). Client screenshots (H-03) not yet in the repo.
+- [ ] Ask Sarvesh to save the nginx log showing the failed A attempt and retry to B. Save client proof under 04_evidence/H_failures/. Edge logs saved: `H-06_mac2_one_backend_stopped_edge_log.png` and `H-07_mac2_edge_log_A_stopped_and_restored.png`. Mac 3 screenshots from a separate 30 Sep 14:04–14:06 run are saved: `H-03a_mac3_both_up.png`, `H-03b_mac3_A_stopped_all_B.png` (six HTTP 200 responses from B, no A listener), and `H-03c_mac3_A_restored.png` (A listener and A/B responses). Requests use explicit edge mapping and CA validation. The specified Mac 1/Mac 4 client proof remains pending.
 - [x] Restart Backend A with the same command. Repeat the requests and confirm both A and B return. Save the restored proof. Evidence: `04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png` (13:56:26, A serves again alongside B).
 
 ## 5. Finish the team architecture and package — Tasks A and Section 9
@@ -83,10 +83,10 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
 - [x] Verify every IP, mask, gateway, MAC, role, and service port on the live LAN. Resolve the Mac 3 MAC discrepancy noted above. Evidence: `01_architecture/ip_table.md` matches A-01, A-02, A-03 and A-04 (IP, /19, gateway 10.7.0.1, active MAC) and the listeners in B-02 (53), C-01 (3001), C-04 (3002) and D-02 (80, 443). Mac 3 discrepancy resolved above.
 - [ ] Read the architecture document as a team. Confirm it shows all four roles and the path DNS → TCP → TLS → HTTP → backend.
 - [ ] Save any required export in 01_architecture/ and make sure the evidence folder is organized for a reviewer to find proof quickly.
-- [ ] Check the configuration bundle and evidence folder using the team checklist.
+- [x] Check the configuration bundle and evidence folder using the team checklist. Audited 30 Sep: architecture sources/PNG exports, shared backend, nginx config, TLS notes/public CA, F-01/F-02, H-03a/b/c and H-07 exist. Backend and edge-script syntax and local Markdown links pass. Outstanding bundle gaps remain recorded: dnsmasq config, Mac 1 TLS proof, DNS recovery proof, and Mac 1/Mac 4 failover client evidence. The original CN_Project_Doc.pdf is unavailable, so full rubric/export compliance remains unverified.
 
 ## 6. Before the review
 
 - [ ] Present demo steps 1, 7, and 8: topology, caching, and stop A while B continues serving; then restore A.
 - [ ] Explain the shared backend implementation, cache headers/ETag, round robin, and backend failover.
-- [ ] Check off finished items in 06_phase1_checklists/team_overview.md and add evidence paths.
+- [x] Check off finished items in 06_phase1_checklists/team_overview.md and add evidence paths. Updated 30 Sep: real F-02 cache-hit capture and H-03a/b/c Mac 3 failover captures are referenced; DNS-mapping and client-location limitations remain explicit. Team review, presentation/viva and missing client evidence are not marked complete.
