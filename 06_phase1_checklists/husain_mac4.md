@@ -138,4 +138,4 @@ Open the saved capture. Use these display filters one at a time. Select packets 
 
 - [ ] Present demo steps 2 and 6: LAN checks, then the saved capture with DNS/TCP/TLS/ports.
 - [ ] Explain ephemeral versus service ports, TCP sequence/acknowledgement numbers, the three-way handshake, TLS 1.2 versus 1.3, and why HTTPS headers are encrypted in the capture.
-- [ ] Check off finished items in 06_phase1_checklists/team_overview.md and add evidence paths.
+- [x] Update `06_phase1_checklists/team_overview.md` with completed Mac 4 contributions, Task G, the wrong-port demonstration, and evidence paths.

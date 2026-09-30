@@ -32,6 +32,18 @@ These are completed document/source tasks only. Live checks and evidence are sep
 - [ ] Capture live screenshots, terminal outputs, and Wireshark files under 04_evidence/. Partial: most are saved. Pending: E-02 (Mac 1 TLS), stop Backend A client proof and restore (Trishit), wrong DNS server restore (Navodit), a second DNS client.
 - [ ] Package and rehearse the complete Phase 1 demonstration.
 
+### Completed Mac 4 contributions
+
+- [x] LAN details and pings: `04_evidence/A_lan/A-04_mac4_network_info.png` and `A-08_mac4_ping_all.png`.
+- [x] Backend B listener and direct access from Mac 2: `04_evidence/C_backends/C-04_mac4_backendB_running.png` and `C-06_mac2_direct_curl_backendB.png`.
+- [x] DNS through Mac 1: `04_evidence/B_dns/B-03_mac4_dig_app.png`.
+- [x] Trusted HTTPS client: `04_evidence/E_tls/E-03_mac4_curl_verbose_tls.png`.
+- [x] Client load-balancing and browser evidence: `04_evidence/D_loadbalancing/D-04_mac4_xbackend_alternating.png`, `D-05_mac4_browser_backendA.png`, and `D-05_mac4_browser_backendB.png`.
+
+These complete Husain's recorded implementation and evidence tasks. Team gates
+below remain separate from one member's completion; demo and viva preparation
+remain open until performed.
+
 ## Build order and shared gates
 
 Complete Task A first. Tasks B and C can then be built in parallel. Task D/E depends on the DNS and both backends. After the edge works, finish caching, packet capture, and failures. Restore normal settings after every failure demo.
@@ -53,7 +65,7 @@ For each demo: record the failure, explain the layer, restore the working config
 - [x] **Wrong DNS record — Navodit:** lookup returns an incorrect address; show the wrong destination, restore Mac 2's IP, and verify the correct answer. Evidence: H-02_wrong_dns_record.png (answer 10.7.18.190, HTTPS fails) and H-02_wrong_dns_record_restored_mac4.jpeg (10.7.22.227 again). The HTTPS recheck after restore is not shown.
 - [ ] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns. Partial: edge log H-06 shows six 200s from B with A retried. Client proof from Mac 1 or Mac 4 and the restored A/B proof are pending (Trishit).
 - [x] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png (Rishihood Learners, 28 Sep 16:41). Both restored 28 Sep 16:44; A/B alternation observed again.
-- [x] **Wrong destination port — Husain:** correct host, unused port; show RST/refusal or timeout if filtered, explain IP versus port, restore and recheck 443. Evidence: H-05_wrong_port.png and H-05_wrong_port.pcapng (30 Sep 11:30, same run): SYN to 8444, RST, ACK from Mac 2, then HTTP/2 200 on 443.
+- [x] **Wrong destination port — Husain:** port 8444 refused with SYN and RST/ACK; subsequent HTTPS on 443 returns HTTP/2 200. Evidence: `04_evidence/H_failures/H-05_wrong_port.png` and `H-05_wrong_port.pcapng` (30 Sep, matching curl source port 58336).
 
 ## Evidence and submission folder
 
