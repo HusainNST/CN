@@ -26,34 +26,34 @@ These are completed document/source tasks only. Live checks and evidence are sep
 - [x] Team-wide architecture document and shared IP table are in 01_architecture/.
 - [x] Topology and request-flow diagrams have editable sources and PNG files in 01_architecture/.
 - [x] One shared backend source and its A/B README are in 03_backend_code/. It uses BACKEND_ID and PORT; TEAM is not required.
-- [ ] Confirm current IP/MAC values and finish the Mac 3 MAC check on the project LAN.
-- [ ] Run both backend processes and prove Mac 2 can reach both over the LAN.
-- [ ] Add DNS, nginx, and TLS setup files to 02_config/.
-- [ ] Capture live screenshots, terminal outputs, and Wireshark files under 04_evidence/.
+- [x] Confirm current IP/MAC values and finish the Mac 3 MAC check on the project LAN. Evidence: 04_evidence/A_lan/A-01, A-02, A-03, A-04 match 01_architecture/ip_table.md; A-03 shows Mac 3's active MAC is be:4f:1d:91:b1:8b.
+- [x] Run both backend processes and prove Mac 2 can reach both over the LAN. Evidence: 04_evidence/C_backends/C-01, C-04 (running), C-02, C-06 (Mac 2 direct curl).
+- [ ] Add DNS, nginx, and TLS setup files to 02_config/. Partial: nginx-teamX.conf, tls_setup_notes.md, teamX-rootCA.crt and mac2-edge-setup.sh are in; dnsmasq-teamX.conf is missing (Navodit).
+- [ ] Capture live screenshots, terminal outputs, and Wireshark files under 04_evidence/. Partial: most are saved. Pending: E-02 (Mac 1 TLS), stop Backend A client proof and restore (Trishit), wrong DNS server restore (Navodit), a second DNS client.
 - [ ] Package and rehearse the complete Phase 1 demonstration.
 
 ## Build order and shared gates
 
 Complete Task A first. Tasks B and C can then be built in parallel. Task D/E depends on the DNS and both backends. After the edge works, finish caching, packet capture, and failures. Restore normal settings after every failure demo.
 
-- [ ] **A — Private LAN (everyone):** all four Macs on one private network; record interface, IPv4, prefix/mask, gateway, MAC; all 12 directed pings between the Macs succeed. Evidence: 04_evidence/A_lan/.
-- [ ] **B — Private DNS (Navodit leads):** Mac 1 answers app.teamX.test and api.teamX.test with Mac 2's IP; at least two other Macs use Mac 1 as resolver. Evidence: dnsmasq-teamX.conf and 04_evidence/B_dns/.
-- [ ] **C — Two backends (Trishit + Husain):** A listens on Mac 3:3001; B on Mac 4:3002; both return JSON and X-Backend; Mac 2 can curl both directly. Evidence: 04_evidence/C_backends/.
-- [ ] **D — Edge/load balancing (Sarvesh):** nginx on Mac 2 accepts client traffic and round-robins to both backends. Repeated requests to one hostname show A and B plus upstream address. Evidence: final nginx config, curl output, and edge log.
-- [ ] **E — HTTPS/TLS (Sarvesh leads):** certificate covers app.teamX.test; Mac 1 and Mac 4 trust it; HTTPS works by name with no curl -k and no browser warning. Evidence: TLS setup notes and client output under 04_evidence/E_tls/.
-- [ ] **F — HTTP caching (Trishit):** show Cache-Control and either a browser fresh-cache hit or a conditional request returning 304. Explain the difference. Evidence: 04_evidence/F_caching/.
-- [ ] **G — Complete protocol flow (Husain):** save captures showing client DNS query/answer, TCP SYN/SYN-ACK/ACK, TLS handshake, encrypted data, ports, and matching curl HTTP headers. Evidence: pcapng plus screenshots under 04_evidence/G_protocol_flow/.
-- [ ] **Phase 1 gate:** from a client, resolve app.teamX.test through Mac 1, reach trusted HTTPS on Mac 2, and receive successful responses from both A and B.
+- [x] **A — Private LAN (everyone):** all four Macs on one private network; record interface, IPv4, prefix/mask, gateway, MAC; all 12 directed pings between the Macs succeed. Evidence: 04_evidence/A_lan/. Network info A-01, A-02, A-03, A-04; pings A-05 (Mac 1), A-06 (Mac 2), A-03 (Mac 3), A-08 (Mac 4), all 0% loss.
+- [ ] **B — Private DNS (Navodit leads):** Mac 1 answers app.teamX.test and api.teamX.test with Mac 2's IP; at least two other Macs use Mac 1 as resolver. Evidence: dnsmasq-teamX.conf and 04_evidence/B_dns/. Partial: answers proven (B-01, B-02, B-04, B-06). Two clients use Mac 1: Mac 4 (B-03, B-05_mac4, B-06) and Mac 2 (B-05_mac2_dns_server.png, B-08_mac2_resolves_by_name.png). Still missing: dnsmasq-teamX.conf in 02_config/.
+- [x] **C — Two backends (Trishit + Husain):** A listens on Mac 3:3001; B on Mac 4:3002; both return JSON and X-Backend; Mac 2 can curl both directly. Evidence: 04_evidence/C_backends/. C-01 (A on *:3001), C-04 (B on *:3002), C-02 and C-06 (Mac 2 direct).
+- [x] **D — Edge/load balancing (Sarvesh):** nginx on Mac 2 accepts client traffic and round-robins to both backends. Repeated requests to one hostname show A and B plus upstream address. Evidence: final nginx config, curl output, and edge log. 02_config/nginx-teamX.conf; D-01, D-02 (config, listening); D-03 (edge log alternating); D-04 (Mac 4 by name, B/A/B/A/B/A); D-05 (browser A and B).
+- [ ] **E — HTTPS/TLS (Sarvesh leads):** certificate covers app.teamX.test; Mac 1 and Mac 4 trust it; HTTPS works by name with no curl -k and no browser warning. Evidence: TLS setup notes and client output under 04_evidence/E_tls/. Partial: certificate and notes (E-01, 02_config/tls_setup_notes.md); Mac 4 trusts it with no -k and no browser warning (E-03, D-05). Mac 1 pending (E-02).
+- [x] **F — HTTP caching (Trishit):** show Cache-Control and either a browser fresh-cache hit or a conditional request returning 304. Explain the difference. Evidence: 04_evidence/F_caching/. F-01 (200 with max-age=60 and ETag, 304 with no body, no-store on /api/status, through the HTTPS edge). F-02 is a summary page, not a browser capture; replace or remove it.
+- [x] **G — Complete protocol flow (Husain):** save captures showing client DNS query/answer, TCP SYN/SYN-ACK/ACK, TLS handshake, encrypted data, ports, and matching curl HTTP headers. Evidence: pcapng plus screenshots under 04_evidence/G_protocol_flow/. G_capture1_tls12.pcapng, G_capture2_tls13.pcapng, G-01 to G-08; curl headers in E-03.
+- [x] **Phase 1 gate:** from a client, resolve app.teamX.test through Mac 1, reach trusted HTTPS on Mac 2, and receive successful responses from both A and B. Evidence: Mac 4 on 29 Sep: B-03 (Mac 1 answers), E-03 (trusted HTTPS, no -k), D-04 (A and B).
 
 ## Required Phase 1 failure demonstrations
 
 For each demo: record the failure, explain the layer, restore the working configuration, and check the normal request again.
 
-- [ ] **Wrong DNS server — Navodit/client:** lookup fails but direct IP reachability remains. Save failure and recovery under 04_evidence/H_failures/.
-- [ ] **Wrong DNS record — Navodit:** lookup returns an incorrect address; show the wrong destination, restore Mac 2's IP, and verify the correct answer.
-- [ ] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns.
+- [ ] **Wrong DNS server — Navodit/client:** lookup fails but direct IP reachability remains. Save failure and recovery under 04_evidence/H_failures/. Partial: H-01 shows dig @10.7.10.250 timing out while ping to Mac 2 works; the client resolver was not changed and there is no recovery evidence.
+- [x] **Wrong DNS record — Navodit:** lookup returns an incorrect address; show the wrong destination, restore Mac 2's IP, and verify the correct answer. Evidence: H-02_wrong_dns_record.png (answer 10.7.18.190, HTTPS fails) and H-02_wrong_dns_record_restored_mac4.jpeg (10.7.22.227 again). The HTTPS recheck after restore is not shown.
+- [ ] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns. Partial: edge log H-06 shows six 200s from B with A retried. Client proof from Mac 1 or Mac 4 and the restored A/B proof are pending (Trishit).
 - [x] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png (Rishihood Learners, 28 Sep 16:41). Both restored 28 Sep 16:44; A/B alternation observed again.
-- [ ] **Wrong destination port — Husain:** correct host, unused port; show RST/refusal or timeout if filtered, explain IP versus port, restore and recheck 443.
+- [x] **Wrong destination port — Husain:** correct host, unused port; show RST/refusal or timeout if filtered, explain IP versus port, restore and recheck 443. Evidence: H-05_wrong_port.png and H-05_wrong_port.pcapng (30 Sep 11:30, same run): SYN to 8444, RST, ACK from Mac 2, then HTTP/2 200 on 443.
 
 ## Evidence and submission folder
 
@@ -75,7 +75,7 @@ Name screenshots by task and content, for example G-03_mac4_tls_clienthello.png.
 
 - [ ] Finalize architecture document: four machine roles, IP/service inventory, topology, and request flow showing protocol layers.
 - [ ] Save dnsmasq configuration, nginx configuration, TLS certificate setup notes, and backend launch instructions.
-- [ ] Save complete code for both backends and any helper scripts.
+- [x] Save complete code for both backends and any helper scripts. Evidence: 03_backend_code/server.py (A and B via BACKEND_ID and PORT), 03_backend_code/README.md, 02_config/mac2-edge-setup.sh.
 - [ ] Save DNS, curl/browser headers, Wireshark DNS/TCP/TLS captures, caching proof, and all five failure demonstrations.
 - [ ] Check the evidence names, make sure commands and full output are readable, and note any proof that still needs to be captured.
 - [ ] Confirm all failures were restored and the live Phase 1 gate still works.

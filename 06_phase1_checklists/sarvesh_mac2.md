@@ -24,7 +24,7 @@ Replace teamX with the assigned team number and use the current backend addresse
     networksetup -getinfo Wi-Fi
 
 - [x] Ping Macs 1, 3, and 4. Save a full-window screenshot under 04_evidence/A_lan/. Evidence: 04_evidence/A_lan/A-06_mac2_ping_all.png (0% loss to 10.7.10.22, 10.7.18.190, 10.7.24.166; 28 Sep 16:36).
-- [ ] For DNS integration, set Mac 2's Wi-Fi DNS server to Mac 1 and flush the cache. 28 Sep on Rishihood Learners: resolver set to 10.7.10.22 then 1.1.1.1; dig @10.7.10.22 app.teamX.test returns 10.7.22.227. macOS still holds an earlier cached failure, so the flush is pending.
+- [x] For DNS integration, set Mac 2's Wi-Fi DNS server to Mac 1 and flush the cache. Evidence: 04_evidence/B_dns/B-08_mac2_resolves_by_name.png (30 Sep 12:14): resolver 10.7.10.22 only, dig answer 10.7.22.227 from SERVER 10.7.10.22#53, and curl by name returns HTTP/2 200 without -k. The earlier failure was caused by the 1.1.1.1 fallback, which answers NXDOMAIN for .test; it was removed. Mac 3 was offline, so the response came from B.
 
       sudo networksetup -setdnsservers Wi-Fi 10.7.10.22
       sudo dscacheutil -flushcache
@@ -114,7 +114,7 @@ Replace teamX with the assigned team number and use the current backend addresse
 
    Evidence: 04_evidence/D_loadbalancing/D-02_mac2_nginx_t_and_listen.png (syntax ok, listening on 80 and 443).
 
-- [ ] From a client using Mac 1 DNS, request the service by name.
+- [x] From a client using Mac 1 DNS, request the service by name. Evidence: 04_evidence/E_tls/E-03_mac4_curl_verbose_tls.png (Mac 4, resolver 10.7.10.22 per B-03, 29 Sep 14:29): HTTP/2 200 by name without -k, with x-backend and x-upstream-addr.
 
       date
       curl -i https://app.teamX.test/api/status
@@ -127,7 +127,7 @@ Replace teamX with the assigned team number and use the current backend addresse
         curl -s -D - -o /dev/null https://app.teamX.test/api/status | grep -iE "^HTTP|x-backend|x-upstream"
       done
 
-   Evidence: 04_evidence/D_loadbalancing/D-03_mac2_access_log_alternating.png (run on Mac 2 with --resolve, 28 Sep 16:36; client-side run by name pending).
+   Evidence: 04_evidence/D_loadbalancing/D-03_mac2_access_log_alternating.png (run on Mac 2 with --resolve, 28 Sep 16:36). Client side by name: 04_evidence/D_loadbalancing/D-04_mac4_xbackend_alternating.png (Mac 4, 29 Sep 14:14, B/A/B/A/B/A).
 
    Save full command output under 04_evidence/D_loadbalancing/. Open the URL in a browser and capture one response from A and one from B if browser evidence is requested.
 
@@ -140,18 +140,20 @@ Replace teamX with the assigned team number and use the current backend addresse
 
    Note: this setup uses the team CA, so clients trust 02_config/teamX-rootCA.crt (not the server .crt). See 02_config/tls_setup_notes.md section 5.
 
-- [ ] Ask each client to run curl -v https://app.teamX.test/api/status without -k. It must report successful certificate verification. Save client output under 04_evidence/E_tls/.
+   Partial: Mac 4 trusts the CA (E-03 "SSL certificate verified via Apple SecTrust"; D-05 browser shows "Certificate is valid"). Mac 1 pending.
+
+- [ ] Ask each client to run curl -v https://app.teamX.test/api/status without -k. It must report successful certificate verification. Save client output under 04_evidence/E_tls/. Partial: Mac 4 done (E-03_mac4_curl_verbose_tls.png). Mac 1 pending (E-02).
 - [ ] Explain TLS termination: the client has TLS with nginx; nginx makes a separate plain HTTP connection to the backend.
 
 ## 5. Demonstrate backend failures — Task H
 
 - [x] With Trishit, stop Backend A using Ctrl+C. Send requests through the HTTPS name; nginx should retry Backend B and return success. Capture response headers and nginx log under 04_evidence/H_failures/. Evidence: 04_evidence/H_failures/H-06_mac2_one_backend_stopped_edge_log.png (Rishihood Learners, 28 Sep 16:42): six 200s from B, first request retried A then B. Trishit's client view (H-03) and the A restart check are separate.
-- [x] Stop both backends. Show that the edge still resolves and completes TLS but returns HTTP 502. Save evidence, then restart both services and verify A/B balancing again. \1 (Rishihood Learners, 28 Sep 16:41): 502 from nginx, both upstreams refused, then no live upstreams. Both restored 28 Sep 16:44; A/B alternation observed again.
-- [ ] Help Husain demonstrate an unused client destination port and explain the resulting TCP refusal/reset.
+- [x] Stop both backends. Show that the edge still resolves and completes TLS but returns HTTP 502. Save evidence, then restart both services and verify A/B balancing again. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png (Rishihood Learners, 28 Sep 16:41): 502 from nginx, both upstreams refused, then no live upstreams. Both restored 28 Sep 16:44; A/B alternation observed again.
+- [x] Help Husain demonstrate an unused client destination port and explain the resulting TCP refusal/reset. Evidence: 04_evidence/H_failures/H-05_wrong_port.png and H-05_wrong_port.pcapng (30 Sep 11:30): Mac 2 (Ethernet 3a:33:4b:89:be:dc) answers each SYN to 8444 with RST, ACK because nothing listens there; 443 then returns HTTP/2 200.
 
 ## 6. Before the review
 
 - [x] Put the final nginx config and TLS setup notes in 02_config/. Evidence: 02_config/nginx-teamX.conf, 02_config/tls_setup_notes.md.
 - [ ] Present demo steps 4 and 5: trusted HTTPS by name, then responses from both backends.
 - [ ] Explain round robin, X-Backend, X-Upstream-Addr, TLS trust, TLS termination, and 502.
-- [ ] Check off finished items in 06_phase1_checklists/team_overview.md and add evidence paths.
+- [x] Check off finished items in 06_phase1_checklists/team_overview.md and add evidence paths. Done 30 Sep for all verified items; partial items carry a note.
