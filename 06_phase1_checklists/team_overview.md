@@ -63,7 +63,7 @@ For each demo: record the failure, explain the layer, restore the working config
 
 - [ ] **Wrong DNS server — Navodit/client:** lookup fails but direct IP reachability remains. Save failure and recovery under 04_evidence/H_failures/. Partial: H-01 shows dig @10.7.10.250 timing out while ping to Mac 2 works; the client resolver was not changed and there is no recovery evidence.
 - [x] **Wrong DNS record — Navodit:** lookup returns an incorrect address; show the wrong destination, restore Mac 2's IP, and verify the correct answer. Evidence: H-02_wrong_dns_record.png (answer 10.7.18.190, HTTPS fails) and H-02_wrong_dns_record_restored_mac4.jpeg (10.7.22.227 again). The HTTPS recheck after restore is not shown.
-- [ ] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns. Partial: edge log H-06 shows six 200s from B with A retried. Client proof from Mac 1 or Mac 4 and the restored A/B proof are pending (Trishit).
+- [x] **Stop Backend A — Trishit + Sarvesh:** requests continue through B; restart A and prove A/B balancing returns. Evidence: H-06 (28 Sep) and 04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png (30 Sep): A/B alternating, A refused and retried on B with every request returning 200, then A/B alternation after restart. Trishit's client screenshots (H-03) are pending; the 30 Sep run used Mac 3 itself as the client.
 - [x] **Stop both backends — Sarvesh + backend owners:** edge returns HTTP 502; restart both and confirm normal service. Evidence: 04_evidence/H_failures/H-04_both_backends_down_502.png (Rishihood Learners, 28 Sep 16:41). Both restored 28 Sep 16:44; A/B alternation observed again.
 - [x] **Wrong destination port — Husain:** port 8444 refused with SYN and RST/ACK; subsequent HTTPS on 443 returns HTTP/2 200. Evidence: `04_evidence/H_failures/H-05_wrong_port.png` and `H-05_wrong_port.pcapng` (30 Sep, matching curl source port 58336).
 
@@ -101,7 +101,7 @@ Name screenshots by task and content, for example G-03_mac4_tls_clienthello.png.
 - [ ] **5. Load balancing — Sarvesh:** run repeated curls showing X-Backend A and B and show nginx's upstream log.
 - [ ] **6. Packet capture — Husain:** open the saved capture and point out DNS, TCP handshake, TLS handshake, encrypted Application Data, and ports.
 - [ ] **7. Caching — Trishit:** show Cache-Control and a browser cache hit or HTTP 304.
-- [ ] **8. One backend stopped — Trishit:** stop A; show successful responses from B only; restart A.
+- [x] **8. One backend stopped — Trishit:** stop A; show successful responses from B only; restart A. Rehearsed live 30 Sep 13:55 to 13:56 (04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png).
 
 The PDF does not require a video. If the professor requests one separately, confirm length, format, narration/faces, and upload location with them.
 

@@ -67,15 +67,15 @@ The shared source is 03_backend_code/server.py. It runs as A or B depending on B
 
 ## 4. Demonstrate stopping one backend — Task H
 
-- [ ] With both backends initially working, save a few requests showing A and B. Stop Backend A with Ctrl+C.
-- [ ] From Mac 1 or Mac 4, make six requests through the HTTPS name. All should return HTTP 200 from B while A is stopped.
+- [x] With both backends initially working, save a few requests showing A and B. Stop Backend A with Ctrl+C. Evidence: `04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png` (30 Sep 13:55:01 to 13:55:02, six requests alternating B/A; A stopped before 13:55:54).
+- [ ] From Mac 1 or Mac 4, make six requests through the HTTPS name. All should return HTTP 200 from B while A is stopped. Partial: six requests returned 200 from B while A was stopped (H-07, 13:55:53 to 13:55:55), but they were sent from Mac 3 (10.7.18.190), not Mac 1 or Mac 4. Rerun from Mac 4 or record why Mac 3 was used.
 
       for i in 1 2 3 4 5 6; do
         curl -s -D - -o /dev/null https://app.teamX.test/api/status | grep -iE "^HTTP|x-backend"
       done
 
-- [ ] Ask Sarvesh to save the nginx log showing the failed A attempt and retry to B. Save client proof under 04_evidence/H_failures/. Partial: the edge log is saved (`H-06_mac2_one_backend_stopped_edge_log.png`). Client proof from Mac 1 or Mac 4 is still missing.
-- [ ] Restart Backend A with the same command. Repeat the requests and confirm both A and B return. Save the restored proof.
+- [ ] Ask Sarvesh to save the nginx log showing the failed A attempt and retry to B. Save client proof under 04_evidence/H_failures/. Partial: edge logs saved (`H-06_mac2_one_backend_stopped_edge_log.png`; `04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png` shows `(502, 200)` at 13:55:54 and "Connection refused" for 10.7.18.190:3001). Client screenshots (H-03) not yet in the repo.
+- [x] Restart Backend A with the same command. Repeat the requests and confirm both A and B return. Save the restored proof. Evidence: `04_evidence/H_failures/H-07_mac2_edge_log_A_stopped_and_restored.png` (13:56:26, A serves again alongside B).
 
 ## 5. Finish the team architecture and package — Tasks A and Section 9
 
