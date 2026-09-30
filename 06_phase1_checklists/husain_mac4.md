@@ -66,7 +66,9 @@ Current peer addresses: Mac 1 `10.7.10.22`, Mac 2 `10.7.22.227`, Mac 3 `10.7.18.
 
    If verification fails, stop and fix the certificate or trust configuration; do not bypass validation.
 
-- [x] Request `/api/status` six times through the edge. Evidence: `04_evidence/D_loadbalancing/D-04_mac4_xbackend_alternating.png` shows B/A/B/A/B/A; browser evidence for both backends is in `D-05_mac4_browser_backendA.png` and `D-05_mac4_browser_backendB.png`.
+- [x] Request `/api/status` six times through the edge. Evidence: `04_evidence/D_loadbalancing/D-04_mac4_xbackend_alternating.png` shows B/A/B/A/B/A.
+- [x] Save a full-window browser Backend B screenshot showing the secure connection and valid certificate. Evidence: `04_evidence/D_loadbalancing/D-05_mac4_browser_backendB.png` (30 Sep, backend B, port 3002).
+- [x] Save a full-window browser Backend A screenshot with Mac 3 running Backend A. Evidence: `04_evidence/D_loadbalancing/D-05_mac4_browser_backendA.png` (30 Sep, backend A, port 3001, secure connection and valid certificate).
 - [x] Retake `B-03_mac4_dig_app.png`, `C-04_mac4_backendB_running.png`, and `D-04_mac4_xbackend_alternating.png` with the required Mac 4 role prompt visible. Evidence: their named files under `04_evidence/`.
 - [x] Retake `E-03_mac4_curl_verbose_tls.png` with the required Mac 4 role prompt visible. Evidence: `04_evidence/E_tls/E-03_mac4_curl_verbose_tls.png` (TLS 1.3, certificate subject and issuer, Apple SecTrust verification, HTTP 200).
 
@@ -117,7 +119,7 @@ Open the saved capture. Use these display filters one at a time. Select packets 
 ## 5. Demonstrate the wrong destination port — Task H
 
 - [x] Capture a wrong destination port attempt on en0; normal port 443 works and port 8444 is refused. Evidence: `04_evidence/H_failures/H-05_wrong_port.png` and `H-05_wrong_port.pcapng`.
-- [x] Retake `H-05_wrong_port.png` with the required Mac 4 role prompt visible. Evidence: `04_evidence/H_failures/H-05_wrong_port.png`.
+- [x] Save terminal output and Wireshark packets from the same run. Evidence: `04_evidence/H_failures/H-05_wrong_port.png` and `H-05_wrong_port.pcapng` (30 Sep, curl source port 58336 matches the captured SYN and RST/ACK).
 
       date
       ping -c 2 app.teamX.test
@@ -130,7 +132,7 @@ Open the saved capture. Use these display filters one at a time. Select packets 
 
 - [x] In Wireshark filter `tcp.port == 8444`; show the client's SYN and Mac 2's RST, ACK. Evidence: `H-05_wrong_port.png` and `H-05_wrong_port.pcapng`.
 - [x] Save the terminal and RST/ACK evidence under `04_evidence/H_failures/`.
-- [ ] After the wrong-port attempt, rerun `curl -i https://app.teamX.test/api/status` and record the HTTP 200 result before checking this item.
+- [x] After the wrong-port attempt, recheck HTTPS on port 443. Evidence: `04_evidence/H_failures/H-05_wrong_port.png` shows `curl -i https://app.teamX.test/api/status` returning HTTP/2 200 after the refusal.
 
 ## 6. Before the review
 
