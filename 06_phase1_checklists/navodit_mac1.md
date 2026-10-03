@@ -79,13 +79,13 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
 
    Pending: Mac 4 (`B-03_mac4_dig_app.png`) and Mac 2 (`B-08_mac2_resolves_by_name.png`) show `app` by default resolver. Neither client has saved `dig` output for `api`. `B-04_mac1_dig_api_and_nslookup.png` runs on Mac 1 itself, so it is not a client check.
 
-- [x] Open the service by name, for example https://app.teamX.test/api/status. Do not type Mac 2's IP into the final HTTPS URL. Evidence: 04_evidence/E_tls/E-02_mac1_curl_verbose_tls-2.png (4 Oct 00:12: dig SERVER 10.7.10.22, curl by name HTTP/2 200, certificate verified).
+- [x] Open the service by name, for example https://app.teamX.test/api/status. Do not type Mac 2's IP into the final HTTPS URL. Evidence: 04_evidence/E_tls/E-02_mac1_curl_verbose_tls.png (4 Oct 00:12: dig SERVER 10.7.10.22, curl by name HTTP/2 200, certificate verified).
 
 ## 3. Demonstrate the DNS failures — Task H
 
 ### Wrong DNS server on a client
 
-- [ ] On a client, temporarily configure an unreachable DNS address, then show that the name lookup fails while direct IP connectivity to Mac 2 still works.
+- [x] On a client, temporarily configure an unreachable DNS address, then show that the name lookup fails while direct IP connectivity to Mac 2 still works. Evidence: `04_evidence/H_failures/H-01a_mac1_wrong_dns_server.png` (4 Oct 00:42: resolver set to 192.0.2.53, dig times out, ping 10.7.22.227 0% loss). The earlier `H-01_wrong_dns_server.png` used `dig @` and is superseded.
 
       sudo networksetup -setdnsservers Wi-Fi 192.0.2.53
       sudo dscacheutil -flushcache
@@ -94,9 +94,8 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
       dig app.teamX.test
       ping -c 2 10.7.22.227
 
-   Partial: `04_evidence/H_failures/H-01_wrong_dns_server.png` (28 Sep 16:56) shows `dig @10.7.10.250` timing out while `ping 10.7.22.227` works. The client resolver setting was never changed, so this shows the idea but not the configured failure.
 
-- [ ] Restore Mac 1 as that client's resolver and prove lookup works again. Pending: no restore evidence for this failure.
+- [x] Restore Mac 1 as that client's resolver and prove lookup works again. Evidence: `04_evidence/H_failures/H-01b_mac1_dns_restored.png` (4 Oct 00:44: resolver 10.7.10.22, answer 10.7.22.227 from SERVER 10.7.10.22#53).
 
       sudo networksetup -setdnsservers Wi-Fi 10.7.10.22
       sudo dscacheutil -flushcache
@@ -107,14 +106,14 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
 
 ### DNS record points to a wrong IP
 
-- [x] Temporarily change the app.teamX.test address line in dnsmasq-teamX.conf to 192.0.2.123. Restart the foreground dnsmasq process with the edited file and flush the client's DNS cache. Evidence: `H-02_wrong_dns_record.png` (28 Sep 16:58). The record was changed to 10.7.18.190 (Mac 3) instead of 192.0.2.123, and dnsmasq was restarted with `brew services`.
-- [x] Run dig app.teamX.test and show that DNS returns the wrong address. Try the request and record the observed result. Restore the correct Mac 2 address immediately afterward. Evidence: `H-02_wrong_dns_record.png` (answer 10.7.18.190, HTTPS "connection failed"). The curl used `--resolve` and `-s`, so it did not use the DNS answer and hid the error reason.
-- [ ] Restart dnsmasq with the restored file, flush the client cache, and confirm the correct answer and HTTPS service work again. Partial: `H-02_wrong_dns_record_restored_mac4.jpeg` shows Mac 4 getting 10.7.22.227 again (28 Sep 17:00). The config restore, the restart and the HTTPS recheck are not shown.
+- [x] Temporarily change the app.teamX.test address line in dnsmasq-teamX.conf to 192.0.2.123. Restart the foreground dnsmasq process with the edited file and flush the client's DNS cache. Evidence: `04_evidence/H_failures/H-02_wrong_dns_record_https_failure_mac1.png` (4 Oct 01:03: answer 192.0.2.123 from Mac 1). The first attempt, `H-02_wrong_dns_record.png` (28 Sep), used 10.7.18.190.
+- [x] Run dig app.teamX.test and show that DNS returns the wrong address. Try the request and record the observed result. Restore the correct Mac 2 address immediately afterward. Evidence: `04_evidence/H_failures/H-02_wrong_dns_record_https_failure_mac1.png` (curl by name, no --resolve, goes to 192.0.2.123 and fails with "Connection reset by peer").
+- [x] Restart dnsmasq with the restored file, flush the client cache, and confirm the correct answer and HTTPS service work again. Evidence: `04_evidence/H_failures/H-02_wrong_dns_record_https_restored_mac4.png` (4 Oct 01:18, Mac 4: answer 10.7.22.227 from Mac 1, HTTPS by name HTTP/2 200).
 - [x] Save evidence of the wrong answer and restored answer under 04_evidence/H_failures/. Evidence: `H-02_wrong_dns_record.png` and `H-02_wrong_dns_record_restored_mac4.jpeg`.
 
 ## 4. Before the review
 
-- [ ] Put the final dnsmasq configuration and a short start/stop note in 02_config/. Partial: `02_config/dnsmasq-teamX.conf` was added 4 Oct, but it is the template, not the running config shown in `B-01_mac1_dnsmasq_conf.png` (missing `local=/teamX.test/`, `no-resolv`, `server=` forwarders and `log-queries`; uses `address=` instead of `host-record=`). Replace it with `/opt/homebrew/etc/dnsmasq.d/teamX.conf` and add a start/stop note.
+- [x] Put the final dnsmasq configuration and a short start/stop note in 02_config/. Evidence: `02_config/dnsmasq-teamX.conf` (matches the running config in B-01) and `02_config/dnsmasq-teamX.md`. The note's start command needs `sudo` because dnsmasq runs as a root daemon (B-02).
 - [ ] Present demo step 3: dig from a client, with Mac 1 shown as the server and Mac 2 shown in the answer.
 - [ ] Be able to explain that DNS finds an IP address; TCP then connects to a port on that address.
 - [ ] Explain the A record, UDP/TCP port 53, why the project uses .test, and what changes in each DNS failure.
