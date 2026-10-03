@@ -79,7 +79,7 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
 
    Pending: Mac 4 (`B-03_mac4_dig_app.png`) and Mac 2 (`B-08_mac2_resolves_by_name.png`) show `app` by default resolver. Neither client has saved `dig` output for `api`. `B-04_mac1_dig_api_and_nslookup.png` runs on Mac 1 itself, so it is not a client check.
 
-- [ ] Open the service by name, for example https://app.teamX.test/api/status. Do not type Mac 2's IP into the final HTTPS URL.
+- [x] Open the service by name, for example https://app.teamX.test/api/status. Do not type Mac 2's IP into the final HTTPS URL. Evidence: 04_evidence/E_tls/E-02_mac1_curl_verbose_tls-2.png (4 Oct 00:12: dig SERVER 10.7.10.22, curl by name HTTP/2 200, certificate verified).
 
 ## 3. Demonstrate the DNS failures — Task H
 
@@ -114,7 +114,7 @@ This file is a do-it-yourself Phase 1 guide. Replace teamX with the team number,
 
 ## 4. Before the review
 
-- [ ] Put the final dnsmasq configuration and a short start/stop note in 02_config/. Pending: only a screenshot of the config exists (`B-01_mac1_dnsmasq_conf.png`); the file itself is not in 02_config/.
+- [ ] Put the final dnsmasq configuration and a short start/stop note in 02_config/. Partial: `02_config/dnsmasq-teamX.conf` was added 4 Oct, but it is the template, not the running config shown in `B-01_mac1_dnsmasq_conf.png` (missing `local=/teamX.test/`, `no-resolv`, `server=` forwarders and `log-queries`; uses `address=` instead of `host-record=`). Replace it with `/opt/homebrew/etc/dnsmasq.d/teamX.conf` and add a start/stop note.
 - [ ] Present demo step 3: dig from a client, with Mac 1 shown as the server and Mac 2 shown in the answer.
 - [ ] Be able to explain that DNS finds an IP address; TCP then connects to a port on that address.
 - [ ] Explain the A record, UDP/TCP port 53, why the project uses .test, and what changes in each DNS failure.

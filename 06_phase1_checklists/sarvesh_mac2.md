@@ -133,16 +133,14 @@ Replace teamX with the assigned team number and use the current backend addresse
 
 ## 4. Help clients trust TLS — Task E
 
-- [ ] Copy the public certificate to Mac 1 and Mac 4. On each client, add it to the System keychain.
+- [x] Copy the public certificate to Mac 1 and Mac 4. On each client, add it to the System keychain. Evidence: Mac 4 (E-03, D-05) and Mac 1 (04_evidence/E_tls/E-02_mac1_curl_verbose_tls-2.png, 4 Oct 00:12, issuer teamX Local Root CA, "SSL certificate verify ok").
 
       sudo security add-trusted-cert -d -r trustRoot \
         -k /Library/Keychains/System.keychain ~/Downloads/app.teamX.test.crt
 
    Note: this setup uses the team CA, so clients trust 02_config/teamX-rootCA.crt (not the server .crt). See 02_config/tls_setup_notes.md section 5.
 
-   Partial: Mac 4 trusts the CA (E-03 "SSL certificate verified via Apple SecTrust"; D-05 browser shows "Certificate is valid"). Mac 1 pending.
-
-- [ ] Ask each client to run curl -v https://app.teamX.test/api/status without -k. It must report successful certificate verification. Save client output under 04_evidence/E_tls/. Partial: Mac 4 done (E-03_mac4_curl_verbose_tls.png). Mac 1 pending (E-02).
+- [x] Ask each client to run curl -v https://app.teamX.test/api/status without -k. It must report successful certificate verification. Save client output under 04_evidence/E_tls/. Evidence: E-03_mac4_curl_verbose_tls.png (Mac 4) and 04_evidence/E_tls/E-02_mac1_curl_verbose_tls-2.png (Mac 1, resolver 10.7.10.22, HTTP/2 200 without -k).
 - [ ] Explain TLS termination: the client has TLS with nginx; nginx makes a separate plain HTTP connection to the backend.
 
 ## 5. Demonstrate backend failures — Task H
