@@ -1,13 +1,28 @@
 sequenceDiagram
-  participant C as Client (Mac 4)
-  participant D as DNS (Mac 1 dnsmasq, 10.7.10.22)
-  participant E as Edge (Mac 2 nginx, 10.7.22.227)
-  participant B as Backend A/B (Mac 3/4)
-  C->>D: DNS query A app.teamX.test (UDP 53)
-  D-->>C: A = 10.7.22.227 (Mac 2), TTL 60
-  C->>E: TCP SYN / SYN-ACK / ACK (port 443)
-  C->>E: TLS ClientHello (SNI) ... Finished
-  C->>E: HTTPS GET /api/status (HTTP/2, encrypted)
-  E->>B: HTTP/1.1 GET /api/status (port 3001 or 3002)
-  B-->>E: 200 + X-Backend: A|B
-  E-->>C: 200 over TLS
+    autonumber
+    participant Client as Client (Mac 1 or Mac 4)
+    participant DNS as Mac 1 / dnsmasq
+    participant Edge as Mac 2 / NGINX
+    participant Backend as Selected backend A or B
+
+    Note over Client,DNS: Name resolution (application layer)
+    Client->>DNS: A lookup for app.teamX.test / UDP 53
+    DNS-->>Client: Edge address 10.7.22.227 / TTL 60 s
+
+    Note over Client,Edge: New TCP connection (transport layer)
+    Client->>Edge: SYN / client ephemeral port to TCP 443
+    Edge-->>Client: SYN-ACK
+    Client->>Edge: ACK
+
+    Note over Client,Edge: TLS handshake (exchanges summarized)
+    Client->>Edge: ClientHello / SNI app.teamX.test / ALPN
+    Edge-->>Client: Server handshake / certificate signed by team CA
+    Client->>Client: Validate hostname, certificate dates, and CA chain
+    Note over Client,Edge: Complete key agreement and Finished messages
+
+    Client->>Edge: Encrypted GET /api/status (HTTP/1.1 or HTTP/2)
+    Note over Edge,Backend: TLS ends at edge / round-robin upstream selection
+    Edge->>Backend: Plaintext HTTP/1.1 GET /api/status
+    Note right of Backend: A = Mac 3, TCP 3001<br/>B = Mac 4, TCP 3002
+    Backend-->>Edge: 200 / JSON / X-Backend / Cache-Control no-store
+    Edge-->>Client: Encrypted response / X-Edge / X-Upstream-Addr

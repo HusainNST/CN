@@ -54,23 +54,87 @@ The full editable table and collection commands are in [ip_table.md](ip_table.md
 
 ## 5. Components and request path
 
-![Request flow](request_flow.png)
+The sequence follows a client request through DNS, TCP, TLS, and HTTP. It
+shows a fresh DNS lookup and a new connection; cached DNS answers can skip
+the lookup, and an established TCP/TLS connection can carry later requests.
+TLS exchanges are summarized because the exact message order and certificate
+visibility differ between TLS 1.2 and TLS 1.3.
 
-Diagram sources: [request_flow.mmd](request_flow.mmd) and
-[request_flow.dot](request_flow.dot).
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Client (Mac 1 or Mac 4)
+    participant DNS as Mac 1 / dnsmasq
+    participant Edge as Mac 2 / NGINX
+    participant Backend as Selected backend A or B
 
-1. **DNS:** A client asks Mac 1 for `app.teamX.test` using UDP 53. Mac 1 returns
-   an A record for Mac 2; the expected DNS TTL is 60 seconds.
-2. **TCP:** The client opens a connection from an ephemeral source port to
-   Mac 2 on TCP 443 using the SYN, SYN-ACK, ACK handshake.
-3. **TLS:** The client sends SNI `app.teamX.test`. Nginx presents the team
-   certificate and negotiates TLS; clients trust the team's root CA. ALPN can
-   negotiate HTTP/2 on the client-to-edge connection.
-4. **HTTP at the edge:** The client sends `GET /api/status` over HTTPS. Nginx
-   terminates TLS and forwards the request over HTTP/1.1 to one backend.
-5. **HTTP at the backend:** Nginx selects Mac 3:3001 or Mac 4:3002. The
-   backend returns JSON with `X-Backend`; Nginx passes it to the client over
-   the TLS connection. `X-Upstream-Addr` identifies the backend address used.
+    Note over Client,DNS: Name resolution (application layer)
+    Client->>DNS: A lookup for app.teamX.test / UDP 53
+    DNS-->>Client: Edge address 10.7.22.227 / TTL 60 s
+
+    Note over Client,Edge: New TCP connection (transport layer)
+    Client->>Edge: SYN / client ephemeral port to TCP 443
+    Edge-->>Client: SYN-ACK
+    Client->>Edge: ACK
+
+    Note over Client,Edge: TLS handshake (exchanges summarized)
+    Client->>Edge: ClientHello / SNI app.teamX.test / ALPN
+    Edge-->>Client: Server handshake / certificate signed by team CA
+    Client->>Client: Validate hostname, certificate dates, and CA chain
+    Note over Client,Edge: Complete key agreement and Finished messages
+
+    Client->>Edge: Encrypted GET /api/status (HTTP/1.1 or HTTP/2)
+    Note over Edge,Backend: TLS ends at edge / round-robin upstream selection
+    Edge->>Backend: Plaintext HTTP/1.1 GET /api/status
+    Note right of Backend: A = Mac 3, TCP 3001<br/>B = Mac 4, TCP 3002
+    Backend-->>Edge: 200 / JSON / X-Backend / Cache-Control no-store
+    Edge-->>Client: Encrypted response / X-Edge / X-Upstream-Addr
+```
+
+### Name resolution and connection setup
+
+[dnsmasq-teamX.conf](../02_config/dnsmasq-teamX.conf) listens on Mac 1
+(`10.7.10.22`) and returns `10.7.22.227` for both `app.teamX.test` and
+`api.teamX.test`, with `local-ttl=60`. The two names enter the same Nginx
+server block and backend pool. DNS identifies the edge; it does not choose
+Backend A or Backend B. When Mac 1 is itself the client, its DNS lookup may
+stay local; Mac 4 provides the LAN DNS-capture vantage.
+
+The client then connects from an ephemeral TCP port to Mac 2 on port 443.
+SYN, SYN-ACK, and ACK establish the connection before TLS begins. The TLS
+ClientHello carries the hostname in SNI and advertises supported application
+protocols through ALPN. The edge presents a certificate signed by the team
+root CA. The client checks the hostname, validity period, and certificate
+chain before sending the application request. Nginx enables HTTP/2 for
+compatible clients; HTTP/1.1 remains available.
+
+### Forwarding and response
+
+Nginx terminates TLS and forwards `GET /api/status` over a separate plaintext
+HTTP/1.1 connection to `10.7.18.190:3001` (A) or `10.7.24.166:3002` (B).
+Round-robin selection and passive failure handling belong to the edge. The
+backend receives the incoming `Host` and configured forwarding headers;
+its TCP peer is Mac 2.
+
+The backend returns HTTP 200, JSON identifying A or B, `X-Backend`, and
+`Cache-Control: no-store`. Nginx adds `X-Edge` and `X-Upstream-Addr` and sends
+the response through the client's TLS connection. For `/api/cached`, the
+backend instead sends cache headers and an ETag; a matching conditional
+request receives 304 without a body.
+
+| Protocol | Layer in this project | Connection or purpose |
+| --- | --- | --- |
+| DNS | Application | Client to Mac 1, normally UDP 53; DNS also supports TCP 53 |
+| TCP | Transport | Client ephemeral port to edge 443; separate edge connection to backend 3001/3002 |
+| TLS | Above TCP, below HTTP; commonly mapped to OSI session/presentation | Certificate validation and encryption on the client-to-edge hop |
+| HTTP | Application | HTTP/1.1 or HTTP/2 inside client TLS; HTTP/1.1 from edge to backend |
+| IP | Network | Addresses and carries packets between the LAN machines |
+| Wi-Fi / Ethernet | Link | Carries frames over the shared local network |
+
+Capture DNS, TCP, and TLS on the client and correlate them with `curl -v`
+headers. HTTPS payloads remain encrypted in Wireshark without TLS session
+secrets; TLS 1.3 also encrypts the certificate message. A client capture on a
+switched LAN does not necessarily show the separate edge-to-backend traffic.
 
 ## 6. Load balancing, caching, and availability
 
