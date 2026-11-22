@@ -7,13 +7,26 @@ before acting.
 
 ## Start with the current state
 
-- Read the relevant project files and the current phase checklist before
-  proposing work. Use the course rubric as the source of requirements; if it
-  is unavailable, ask for it rather than inventing requirements.
+- Read `CN_Project_Doc.pdf` as the course rubric and source of requirements
+  before proposing work. Do not invent requirements beyond the rubric.
+- Check open GitHub Issues and Pull Requests for current Phase 2 work and
+  assignments. Treat `06_phase1_checklists/` as a read-only Phase 1 archive;
+  do not add Phase 2 tasks there or delete the archived files.
 - Run `git status --short --branch` and inspect the diff before editing.
   Assume uncommitted changes may belong to another teammate. Preserve them.
-- Work only on the requested task and current phase. Do not expand Phase 1
-  work into Phase 2 or reorganize the submission without being asked.
+- Work only on the requested issue or task. Do not reorganize unrelated
+  submission directories without being asked.
+
+## Workflow: Issues and Pull Requests
+
+- Track Phase 2 tasks, evidence items, and ownership in GitHub Issues rather
+  than in-repo markdown checklists.
+- Work on a scoped branch per issue (or small related set of issues) and
+  integrate changes into `main` through Pull Requests referencing the issue.
+- Do not create, edit, close, or merge GitHub Issues or Pull Requests unless
+  explicitly asked.
+- Mark an issue or PR checklist item complete only when its stated result has
+  been observed on the live network or its named artifact exists in the repo.
 
 ## Approval required before changing existing code
 
@@ -50,9 +63,10 @@ before acting.
 - Use neutral role names such as Backend A and Backend B. A short example for
   each role is fine; do not frame a shared README as one person's Mac guide.
 - Do not use a README as a changelog, personal progress log, terminal dump,
-  task checklist, or step-by-step lab diary. Put person-specific tasks in
-  `06_phase1_checklists/` and configuration procedures in the appropriate
-  configuration notes when those files are requested.
+  task checklist, or step-by-step lab diary. Track person-specific Phase 2
+  tasks in GitHub Issues (`06_phase1_checklists/` is the Phase 1 archive) and
+  put configuration procedures in the appropriate configuration notes when
+  those files are requested.
 
 ## Evidence and grading integrity
 
