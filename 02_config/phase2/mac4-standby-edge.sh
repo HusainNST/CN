@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ABOUTME: Mac 4 standby HTTPS edge for CN Project Phase 2 (Extension E): standby key/CSR and nginx config.
-# ABOUTME: The CSR is signed on Mac 2; teamX-rootCA.key never leaves Mac 2 and no key or CSR goes in the repo.
+# ABOUTME: The CSR is signed on Mac 2; teamX-rootCA.key never leaves Mac 2 and no private key goes in the repo.
+# ABOUTME: The standby CSR holds only the public key, so it is committed at 02_config/phase2/app.teamX.test-standby.csr.
 #
 # Usage:
 #   ./mac4-standby-edge.sh --generate-csr [--force]           # key + CSR in ~/cn-project/tls
