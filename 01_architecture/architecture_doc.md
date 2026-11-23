@@ -301,8 +301,8 @@ else to public resolvers, and log every query. Clients list Mac 1 first and
 Mac 3 second. When Mac 1's `dnsmasq` is stopped, name resolution continues
 through Mac 3, so a DNS failure on one machine no longer stops the service.
 
-A DNS service failure stops name resolution even though every server is
-healthy. An application server failure leaves resolution working but the
+A DNS service failure stops name resolution even though every application
+server is healthy. An application server failure leaves resolution working but the
 service down. Backup DNS addresses only the first.
 
 - Configs: [Mac 1 primary](../02_config/phase2/snapshots/dnsmasq-primary-mac1.conf),
@@ -340,7 +340,11 @@ are `quick`, so the first match wins:
 | Mac 4, TCP 3002 | `lo0` (the standby edge reaches B locally), Mac 2 `10.7.6.184` | `block return-rst` |
 
 `return-rst` makes a refused client fail at once with `Connection refused`
-instead of waiting for a timeout. The edge still reaches both backends, so
+instead of waiting for a timeout. The rules match the source IP, not the
+process. Mac 3 passes `10.7.3.254` so the standby edge can reach Backend A,
+which means Mac 4's own client traffic to `:3001` also passes. Direct-access
+blocking on `:3001` is therefore shown from Mac 1 (or any host other than
+Mac 2 and Mac 4). The edge still reaches both backends, so
 HTTPS by hostname is unaffected. Before loading any rules, the script saves
 `~/cn-project/pf.conf.phase1.bak` and the original pf state, and never
 overwrites that backup. [`pf-backend-rollback.sh`](../02_config/phase2/pf-backend-rollback.sh)
@@ -385,8 +389,11 @@ until their 30-second TTL expires, while new lookups go straight to Mac 4.
 Rolling back is the same change in reverse.
 
 - Observed on 23 Nov 2026: before the switch, requests went to `mac2-nginx`
-  (P2E-02). During the TTL window a cached client still reached Mac 2 while a
-  fresh lookup reached Mac 4 (P2E-03). After expiry, requests went through
+  (P2E-02). During the TTL window Mac 1's cached resolver still sent requests
+  to Mac 2, while a client using the fresh answer reached Mac 4 (P2E-03). That
+  fresh client was pinned to the new address with `curl --resolve`, keeping
+  the hostname so the certificate was still checked, because Mac 1's own
+  resolver was still cached. After expiry, requests went through
   `mac4-standby-nginx` and alternated A/B (P2E-04). Then the record was rolled
   back and the standby stopped (P2E-05). Mac 3's switch landed later than
   Mac 1's; [P2E_notes.md](../04_evidence/P2_E_edge_migration/P2E_notes.md)

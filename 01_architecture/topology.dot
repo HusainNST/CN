@@ -1,5 +1,5 @@
 // teamX Phase 2 topology. Render: dot -Tpng 01_architecture/topology.dot -o 01_architecture/topology.png
-// Columns left to right: client, DNS tier, edge tier, backend firewall (pf), backends.
+// Columns left to right: client; DNS and edge services the client talks to; backend firewall (pf); backends.
 // Fill colour marks the Mac: blue Mac 1, red Mac 2, green Mac 3, pink Mac 4.
 digraph topology {
     graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.9",
@@ -31,20 +31,20 @@ digraph topology {
     cloud [label="Cloud equivalent\nRoute 53 primary + secondary with health checks\n→ load balancer → EC2 A/B behind security groups", fillcolor="#eceff1", color="#90a4ae"];
 
     { rank=same; client; direct; }
-    { rank=same; dns1; dns3; }
-    { rank=same; edge2; edge4; }
+    { rank=same; dns1; dns3; edge2; edge4; }
     { rank=same; pf3; pf4; }
     { rank=same; backA; backB; }
-    // keep Mac 3 above Mac 4 in every column
-    dns3 -> edge2 [style=invis]; pf3 -> pf4 [style=invis, constraint=false];
+    // keep Mac 3 above Mac 4 in the pf and backend columns
+    pf3 -> pf4 [style=invis, constraint=false]; backA -> backB [style=invis, constraint=false];
 
     // 1. Name resolution
     client -> dns1 [label="1. DNS query (primary)"];
     client -> dns3 [label="if Mac 1 is down (Ext A)", style=dashed, color="#2e7d32"];
 
-    // 2. HTTPS to the edge; standby only after the record changes (Ext E)
-    dns1 -> edge2 [label="2. HTTPS 443 to answer\n10.7.6.184", penwidth=1.6];
-    dns1 -> edge4 [label="after cutover: record\n→ 10.7.3.254 (Ext E)", style=dashed, color="#ad1457"];
+    // 2. The client (not the resolver) opens HTTPS to the address DNS returned;
+    //    the standby only after the record changes (Ext E).
+    client -> edge2 [label="2. HTTPS 443 to the DNS answer\n10.7.6.184", penwidth=1.6];
+    client -> edge4 [label="HTTPS 443 after cutover:\nanswer is 10.7.3.254 (Ext E)", style=dashed, color="#ad1457"];
 
     // 3. Edge to backends through pf (Ext C), failover between them (Ext D)
     edge2 -> pf3 [label="3. HTTP/1.1 :3001", penwidth=1.6];
