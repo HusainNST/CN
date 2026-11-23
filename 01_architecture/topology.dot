@@ -1,21 +1,63 @@
+// teamX Phase 2 topology. Render: dot -Tpng 01_architecture/topology.dot -o 01_architecture/topology.png
+// Columns left to right: client; DNS and edge services the client talks to; backend firewall (pf); backends.
+// Fill colour marks the Mac: blue Mac 1, red Mac 2, green Mac 3, pink Mac 4.
 digraph topology {
-    graph [rankdir=LR, bgcolor="white", pad="0.25", nodesep="0.55", ranksep="0.8"];
-    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, margin="0.18,0.12", color="#263238"];
-    edge [fontname="Helvetica", fontsize=9, color="#546e7a"];
+    graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.9",
+           fontname="Helvetica", fontsize=12, labelloc="t", newrank=true, ordering=out,
+           label="teamX Phase 2 topology  ·  Rishihood Learners Wi-Fi LAN 10.7.0.0/19, gateway 10.7.0.1  ·  addresses rechecked 23 Nov 2026\n "];
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.16,0.10", color="#263238"];
+    edge [fontname="Helvetica", fontsize=9, color="#455a64"];
 
-    network [label="Rishihood Learners Wi-Fi\nLAN 10.7.0.0/19\ngateway 10.7.0.1", fillcolor="#fff3e0"];
-    mac1 [label="Mac 1 — Navodit\nDNS + client\n10.7.10.22\n53 UDP/TCP", fillcolor="#e3f2fd"];
-    mac2 [label="Mac 2 — Sarvesh\nEdge / LB / TLS\n10.7.22.227\n80, 443 TCP", fillcolor="#e8eaf6"];
-    mac3 [label="Mac 3 — Trishit\nBackend A\n10.7.18.190\n3001 TCP", fillcolor="#e8f5e9"];
-    mac4 [label="Mac 4 — Husain\nBackend B + client\n10.7.24.166\n3002 TCP", fillcolor="#fce4ec"];
-    cloud [label="Cloud equivalent\nRoute 53 → ALB → EC2 A/B", fillcolor="#f3e5f5"];
+    // Column 0: clients
+    client [label="Client (Mac 1 or Mac 4)\nresolvers 10.7.4.108, then 10.7.30.194\ntrusts the teamX root CA", fillcolor="#fff3e0"];
+    direct [label="Any non-edge LAN host\n(e.g. Mac 1 curl to a backend port)", fillcolor="#fff3e0", style="rounded,filled,dashed"];
 
-    network -> mac1 [label="Wi-Fi / Ethernet"];
-    network -> mac2 [label="Wi-Fi / Ethernet"];
-    network -> mac3 [label="Wi-Fi / Ethernet"];
-    network -> mac4 [label="Wi-Fi / Ethernet"];
-    mac1 -> mac2 [label="DNS answer\napp.teamX.test"];
-    mac2 -> mac3 [label="HTTP/1.1\n3001"];
-    mac2 -> mac4 [label="HTTP/1.1\n3002"];
-    mac2 -> cloud [style=dashed, label="same roles at cloud scale"];
+    // Column 1: DNS tier (Extensions A and B)
+    dns1 [label="Mac 1 — Navodit  ·  10.7.4.108\nPrimary DNS (dnsmasq), UDP/TCP 53\napp/api.teamX.test → 10.7.6.184\nlocal-ttl=30", fillcolor="#e3f2fd", color="#1e88e5"];
+    dns3 [label="Mac 3 — Trishit  ·  10.7.30.194\nBackup DNS (dnsmasq), UDP/TCP 53\nsame records, local-ttl=30", fillcolor="#e8f5e9", color="#2e7d32"];
+
+    // Column 2: edge tier (Extensions D and E)
+    edge2 [label="Mac 2 — Sarvesh  ·  10.7.6.184\nPrimary edge (nginx)\nTCP 80 → 301, TCP 443 TLS 1.2/1.3, HTTP/2\nround-robin, max_fails=1 fail_timeout=10s\nREMAINING SINGLE POINT OF FAILURE", fillcolor="#ffebee", color="#c62828", penwidth=2];
+    edge4 [label="Mac 4 — Husain  ·  10.7.3.254\nStandby edge (nginx), TCP 443\nstandby certificate, same config\nserves only after DNS cutover", fillcolor="#fce4ec", color="#ad1457", style="rounded,filled,dashed"];
+
+    // Column 3: backend firewall (Extension C)
+    pf3 [label="Mac 3 pf anchor teamX-backend\npass lo0, 10.7.6.184, 10.7.3.254\nblock return-rst others → :3001", shape=octagon, fillcolor="#e8f5e9", color="#2e7d32"];
+    pf4 [label="Mac 4 pf anchor teamX-backend\npass lo0, 10.7.6.184\nblock return-rst others → :3002", shape=octagon, fillcolor="#fce4ec", color="#ad1457"];
+
+    // Column 4: backends
+    backA [label="Mac 3  ·  Backend A\nPython server.py, TCP 3001\nX-Backend: A", fillcolor="#e8f5e9", color="#2e7d32"];
+    backB [label="Mac 4  ·  Backend B\nPython server.py, TCP 3002\nX-Backend: B", fillcolor="#fce4ec", color="#ad1457"];
+
+    cloud [label="Cloud equivalent\nRoute 53 primary + secondary with health checks\n→ load balancer → EC2 A/B behind security groups", fillcolor="#eceff1", color="#90a4ae"];
+
+    { rank=same; client; direct; }
+    { rank=same; dns1; dns3; edge2; edge4; }
+    { rank=same; pf3; pf4; }
+    { rank=same; backA; backB; }
+    // keep Mac 3 above Mac 4 in the pf and backend columns
+    pf3 -> pf4 [style=invis, constraint=false]; backA -> backB [style=invis, constraint=false];
+
+    // 1. Name resolution
+    client -> dns1 [label="1. DNS query (primary)"];
+    client -> dns3 [label="if Mac 1 is down (Ext A)", style=dashed, color="#2e7d32"];
+
+    // 2. The client (not the resolver) opens HTTPS to the address DNS returned;
+    //    the standby only after the record changes (Ext E).
+    client -> edge2 [label="2. HTTPS 443 to the DNS answer\n10.7.6.184", penwidth=1.6];
+    client -> edge4 [label="HTTPS 443 after cutover:\nanswer is 10.7.3.254 (Ext E)", style=dashed, color="#ad1457"];
+
+    // 3. Edge to backends through pf (Ext C), failover between them (Ext D)
+    edge2 -> pf3 [label="3. HTTP/1.1 :3001", penwidth=1.6];
+    edge2 -> pf4 [label="HTTP/1.1 :3002", penwidth=1.6];
+    edge4 -> pf3 [label=":3001", style=dashed, color="#ad1457"];
+    edge4 -> backB [label="127.0.0.1:3002 via lo0", style=dashed, color="#ad1457"];
+    pf3 -> backA [label="pass"];
+    pf4 -> backB [label="pass"];
+
+    // Direct access to backend ports is refused (Ext C)
+    direct -> pf3 [label="direct :3001 → TCP RST", style=dotted, color="#c62828", fontcolor="#c62828"];
+    direct -> pf4 [label="direct :3002 → TCP RST", style=dotted, color="#c62828", fontcolor="#c62828"];
+
+    // Cloud mapping sits beside the backends; the doc explains it.
+    backB -> cloud [style=invis];
 }
