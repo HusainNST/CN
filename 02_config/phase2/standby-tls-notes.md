@@ -32,16 +32,23 @@ Send only `app.teamX.test-standby.csr` to Mac 2 (AirDrop or USB).
 
 ## 2. Mac 2 signs it with the team root CA
 
+macOS ships LibreSSL as `/usr/bin/openssl`, which rejects `-ext` in step 3.
+Put Homebrew OpenSSL 3 first on `PATH`, as in Phase 1's
+[tls_setup_notes.md](../tls_setup_notes.md). Run steps 2 and 3 in the same
+terminal.
+
 ```sh
+export PATH="$(brew --prefix openssl@3)/bin:$PATH"
 cd ~/cn-project/tls
 cat > app.teamX.test-standby.ext <<'EOF'
 basicConstraints=CA:FALSE
 keyUsage=critical,digitalSignature,keyEncipherment
 extendedKeyUsage=serverAuth
 subjectAltName=DNS:app.teamX.test,DNS:api.teamX.test
+authorityKeyIdentifier=keyid,issuer
 EOF
 openssl x509 -req -in app.teamX.test-standby.csr \
-  -CA teamX-rootCA.crt -CAkey teamX-rootCA.key -CAserial teamX-rootCA.srl \
+  -CA teamX-rootCA.crt -CAkey teamX-rootCA.key -CAcreateserial \
   -out app.teamX.test-standby.crt -days 365 -sha256 \
   -extfile app.teamX.test-standby.ext
 ```
@@ -68,5 +75,19 @@ against `02_config/teamX-rootCA.crt` before installing the config.
 
 ## Verification output
 
-Pending. This section gets the real output of the two step 3 commands once
-Mac 2 signs Mac 4's CSR. Until then, no standby certificate exists.
+Mac 2 signed Mac 4's CSR on 23 Nov 2026 with OpenSSL 3.6.3. Step 3 output:
+
+```text
+app.teamX.test-standby.crt: OK
+subject=CN=app.teamX.test, O=CN Project teamX
+issuer=CN=teamX Local Root CA, O=CN Project teamX
+X509v3 Subject Alternative Name:
+    DNS:app.teamX.test, DNS:api.teamX.test
+```
+
+Serial `41C5F4AD3029B5FE384B1D6584AEAB1443925F20`, valid until 23 Nov 2027.
+The public key in the certificate matches the one in Mac 4's CSR, so it
+pairs with the private key that stayed on Mac 4.
+
+Pending: Mac 4 installs the certificate and serves trusted HTTPS from the
+standby edge.
