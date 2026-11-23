@@ -12,12 +12,12 @@ analysis without cloud hosting.
 
 | Machine | Owner | Shared role | Recorded IPv4 | Service ports | Cloud equivalent |
 | --- | --- | --- | --- | --- | --- |
-| Mac 1 | Navodit | Private DNS and test client | `10.7.10.22` | UDP/TCP 53 | Managed private DNS |
+| Mac 1 | Navodit | Private DNS and test client | `10.7.4.108` | UDP/TCP 53 | Managed private DNS |
 | Mac 2 | Sarvesh | HTTPS edge, reverse proxy, load balancer | `10.7.6.184` | TCP 80 and 443 | Application load balancer |
 | Mac 3 | Trishit | Backend A | `10.7.18.190` | TCP 3001 | Application server A |
 | Mac 4 | Husain | Backend B and test client | `10.7.3.254` | TCP 3002; TCP 80 and 443 (standby edge) | Application server B |
 
-These addresses were recorded on 28 September 2026; Mac 2 and Mac 4 were
+These addresses were recorded on 28 September 2026; Mac 1, Mac 2 and Mac 4 were
 rechecked on 23 November 2026. All four machines use
 `10.7.0.0/19` with gateway `10.7.0.1`; recheck addresses before another run.
 The [IP and service inventory](01_architecture/ip_table.md) includes interfaces,
