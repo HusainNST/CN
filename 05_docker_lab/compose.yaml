@@ -1,0 +1,66 @@
+# ABOUTME: Docker emulation of the four project Macs on two subnets, with Mac 2 routing between them.
+# ABOUTME: Mounts the repo read-only so every config is rendered by the real 02_config/phase2 scripts.
+name: teamx-phase2
+
+x-mac: &mac
+  build: .
+  image: teamx-phase2-lab:1
+  cap_add: [NET_ADMIN]
+  volumes:
+    - ../:/repo:ro
+    - shared:/shared
+  environment: &env
+    MAC1_IP: 10.77.0.10
+    MAC2_CLIENT_IP: 10.77.0.20
+    MAC2_IP: 10.77.0.70
+    MAC3_IP: 10.77.0.80
+    MAC4_IP: 10.77.0.90
+    CLIENT_LAN: 10.77.0.0/26
+    SERVER_LAN: 10.77.0.64/26
+
+services:
+  mac1:
+    <<: *mac
+    hostname: mac1
+    environment: { <<: *env, ROLE: mac1 }
+    networks:
+      client_lan: { ipv4_address: 10.77.0.10 }
+
+  mac2:
+    <<: *mac
+    hostname: mac2
+    environment: { <<: *env, ROLE: mac2 }
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    networks:
+      client_lan: { ipv4_address: 10.77.0.20 }
+      server_lan: { ipv4_address: 10.77.0.70 }
+
+  mac3:
+    <<: *mac
+    hostname: mac3
+    environment: { <<: *env, ROLE: mac3 }
+    networks:
+      server_lan: { ipv4_address: 10.77.0.80 }
+
+  mac4:
+    <<: *mac
+    hostname: mac4
+    environment: { <<: *env, ROLE: mac4 }
+    networks:
+      server_lan: { ipv4_address: 10.77.0.90 }
+
+networks:
+  client_lan:
+    ipam:
+      config:
+        - subnet: 10.77.0.0/26
+          gateway: 10.77.0.1
+  server_lan:
+    ipam:
+      config:
+        - subnet: 10.77.0.64/26
+          gateway: 10.77.0.65
+
+volumes:
+  shared:

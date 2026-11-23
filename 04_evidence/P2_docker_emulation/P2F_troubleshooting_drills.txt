@@ -1,0 +1,82 @@
+DOCKER EMULATION EVIDENCE: not captured on the real Macs.
+Four containers stand in for Mac 1 to Mac 4 with the roles from the GitHub issues.
+Configs were rendered by the repo's 02_config/phase2 scripts; pf is applied as equivalent iptables rules.
+Lab subnets: client LAN 10.77.0.0/26, server LAN 10.77.0.64/26, Mac 2 routes between them.
+Mac 1 10.77.0.10 | Mac 2 10.77.0.20 (client side) and 10.77.0.70 (server side) | Mac 3 10.77.0.80 | Mac 4 10.77.0.90
+Extension: F, troubleshooting drills (issue P2-17). Faults were injected by script, so these drills are not blind.
+
+## Drill 1: fault injected on Mac 1 (wrong A record)
+
+[2026-11-23 04:02:02 UTC] mac1 (10.77.0.10) $ lab render-dns 10.77.0.30 >/dev/null && lab dns-restart >/dev/null && echo "fault injected"
+fault injected
+
+[2026-11-23 04:02:02 UTC] mac1 (10.77.0.10) $ lab cache-flush >/dev/null; curl -sS -m 4 https://app.teamX.test/api/status
+curl: (7) Failed to connect to app.teamX.test port 443 after 3060 ms: Couldn't connect to server
+(exit status 7)
+
+## Layer 1 DNS
+
+[2026-11-23 04:02:05 UTC] mac1 (10.77.0.10) $ dig app.teamX.test +noall +answer; dig @10.77.0.10 app.teamX.test +short; dig @10.77.0.80 app.teamX.test +short
+app.teamX.test.		26	IN	A	10.77.0.30
+10.77.0.30
+10.77.0.20
+Finding: primary answers 10.77.0.30, backup answers 10.77.0.20 (the edge). Fault is the A record on Mac 1.
+
+## Fix and verify
+
+[2026-11-23 04:02:06 UTC] mac1 (10.77.0.10) $ lab render-dns 10.77.0.20 >/dev/null && lab dns-restart >/dev/null && lab cache-flush >/dev/null; dig app.teamX.test +short; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+10.77.0.20
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+## Drill 2: fault injected on Mac 3 (pf allows the wrong edge IP)
+
+[2026-11-23 04:02:06 UTC] mac3 (10.77.0.80) $ lab fw-isolate 3001 10.77.0.71 >/dev/null && echo "fault injected"
+fault injected
+
+[2026-11-23 04:02:06 UTC] mac1 (10.77.0.10) $ for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -; done
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+Symptom: every request succeeds but only Backend B answers. Failover is hiding a broken backend path.
+
+## Layer 1 DNS
+
+[2026-11-23 04:02:06 UTC] mac1 (10.77.0.10) $ dig app.teamX.test +short
+10.77.0.20
+
+## Layer 2 network and TCP, from the edge
+
+[2026-11-23 04:02:07 UTC] mac2 (10.77.0.20/10.77.0.70) $ nc -vz -w 2 10.77.0.80 3001; nc -vz -w 2 10.77.0.90 3002
+nc: connect to 10.77.0.80 port 3001 (tcp) failed: Connection refused
+Connection to 10.77.0.90 3002 port [tcp/*] succeeded!
+
+[2026-11-23 04:02:07 UTC] mac3 (10.77.0.80) $ iptables -S TEAMX-BACKEND
+-N TEAMX-BACKEND
+-A TEAMX-BACKEND -i lo -p tcp -m tcp --dport 3001 -j ACCEPT
+-A TEAMX-BACKEND -s 10.77.0.71/32 ! -i lo -p tcp -m tcp --dport 3001 -j ACCEPT
+-A TEAMX-BACKEND ! -i lo -p tcp -m tcp --dport 3001 -j REJECT --reject-with tcp-reset
+Finding: Mac 3 accepts 3001 only from 10.77.0.71; the edge's server side IP is 10.77.0.70, so it gets RST.
+
+## Fix and verify
+
+[2026-11-23 04:02:07 UTC] mac3 (10.77.0.80) $ lab fw-rollback >/dev/null && lab fw-isolate 3001 10.77.0.70 | tail -n 4
+  -N TEAMX-BACKEND
+  -A TEAMX-BACKEND -i lo -p tcp -m tcp --dport 3001 -j ACCEPT
+  -A TEAMX-BACKEND -s 10.77.0.70/32 ! -i lo -p tcp -m tcp --dport 3001 -j ACCEPT
+  -A TEAMX-BACKEND ! -i lo -p tcp -m tcp --dport 3001 -j REJECT --reject-with tcp-reset
+
+(waiting 11 seconds: fail_timeout=10s)
+
+[2026-11-23 04:02:18 UTC] mac1 (10.77.0.10) $ for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -; done
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+[2026-11-23 04:02:19 UTC] mac3 (10.77.0.80) $ lab fw-rollback | head -n 1
+firewall restored to the saved Phase 1 state on mac3

@@ -1,0 +1,111 @@
+DOCKER EMULATION EVIDENCE: not captured on the real Macs.
+Four containers stand in for Mac 1 to Mac 4 with the roles from the GitHub issues.
+Configs were rendered by the repo's 02_config/phase2 scripts; pf is applied as equivalent iptables rules.
+Lab subnets: client LAN 10.77.0.0/26, server LAN 10.77.0.64/26, Mac 2 routes between them.
+Mac 1 10.77.0.10 | Mac 2 10.77.0.20 (client side) and 10.77.0.70 (server side) | Mac 3 10.77.0.80 | Mac 4 10.77.0.90
+Extension: E, controlled edge migration by DNS cutover (issues P2-04, P2-05, P2-15, P2-16)
+
+## Mac 4 creates its own key and CSR with mac4-standby-edge.sh (P2-04); only the CSR leaves Mac 4
+
+[2026-11-23 04:01:25 UTC] mac4 (10.77.0.90) $ bash /repo/02_config/phase2/mac4-standby-edge.sh --generate-csr && ls -l /root/cn-project/tls && cp /root/cn-project/tls/app.teamX.test-standby.csr /shared/outbox/
+Created private key /root/cn-project/tls/app.teamX.test-standby.key (stays on this Mac, never commit or send it)
+Created CSR /root/cn-project/tls/app.teamX.test-standby.csr
+
+Check it:  openssl req -in /root/cn-project/tls/app.teamX.test-standby.csr -noout -text | grep -E 'Subject:|DNS:'
+Send ONLY the .csr to Mac 2 for signing (see 02_config/phase2/standby-tls-notes.md).
+total 8
+-rw------- 1 root root  980 Nov 23 04:01 app.teamX.test-standby.csr
+-rw------- 1 root root 1704 Nov 23 04:01 app.teamX.test-standby.key
+
+## Mac 2 signs it with the team root CA, commands from standby-tls-notes.md (P2-05)
+
+[2026-11-23 04:01:25 UTC] mac2 (10.77.0.20/10.77.0.70) $ cd /root/cn-project/tls && printf "basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:app.teamX.test,DNS:api.teamX.test\n" > app.teamX.test-standby.ext && openssl x509 -req -in /shared/outbox/app.teamX.test-standby.csr -CA teamX-rootCA.crt -CAkey teamX-rootCA.key -CAserial teamX-rootCA.srl -out app.teamX.test-standby.crt -days 30 -sha256 -extfile app.teamX.test-standby.ext && openssl verify -CAfile teamX-rootCA.crt app.teamX.test-standby.crt && openssl x509 -in app.teamX.test-standby.crt -noout -subject -issuer -ext subjectAltName && cp app.teamX.test-standby.crt /shared/outbox/
+Certificate request self-signature ok
+subject=CN = app.teamX.test
+app.teamX.test-standby.crt: OK
+subject=CN = app.teamX.test
+issuer=CN = teamX Lab Root CA (Docker emulation)
+X509v3 Subject Alternative Name: 
+    DNS:app.teamX.test, DNS:api.teamX.test
+
+## Mac 4 installs the certificate and starts the standby edge (P2E-01)
+
+[2026-11-23 04:01:26 UTC] mac4 (10.77.0.90) $ cp /shared/outbox/app.teamX.test-standby.crt /root/cn-project/tls/ && openssl verify -CAfile /shared/ca/teamX-lab-rootCA.crt /root/cn-project/tls/app.teamX.test-standby.crt && cp /etc/teamX/standby.conf /etc/nginx/conf.d/teamX-standby.conf && lab nginx-start && ss -ltnp "sport = :443"
+/root/cn-project/tls/app.teamX.test-standby.crt: OK
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+2026/11/23 04:01:26 [notice] 1614#1614: using the "epoll" event method
+2026/11/23 04:01:26 [notice] 1614#1614: nginx/1.27.3
+2026/11/23 04:01:26 [notice] 1614#1614: built by gcc 12.2.0 (Debian 12.2.0-14) 
+2026/11/23 04:01:26 [notice] 1614#1614: OS: Linux 6.12.54-linuxkit
+2026/11/23 04:01:26 [notice] 1614#1614: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nginx started on mac4
+2026/11/23 04:01:26 [notice] 1615#1615: start worker processes
+2026/11/23 04:01:26 [notice] 1615#1615: start worker process 1616
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess
+LISTEN 0      511          0.0.0.0:443       0.0.0.0:*    users:(("nginx",pid=1615,fd=8))
+
+## Before cutover: Mac 1 warms its cache on the Mac 2 edge (P2E-02)
+
+[2026-11-23 04:01:28 UTC] mac1 (10.77.0.10) $ lab cache-flush; getent hosts app.teamX.test; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+client DNS cache flushed on mac1
+10.77.0.20      app.teamX.test
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+
+## Cutover: app.teamX.test -> Mac 4 (10.77.0.90) on both DNS servers
+
+[2026-11-23 04:01:28 UTC] mac1 (10.77.0.10) $ lab render-dns 10.77.0.90 && lab dns-restart
+Rendered primary dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac1
+dnsmasq started on mac1
+
+[2026-11-23 04:01:28 UTC] mac3 (10.77.0.80) $ lab render-dns 10.77.0.90 && lab dns-restart
+Rendered backup dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac3
+dnsmasq started on mac3
+
+## Inside the TTL window: cached Mac 1 still hits Mac 2, a fresh lookup hits the standby (P2E-03)
+
+[2026-11-23 04:01:29 UTC] mac1 (10.77.0.10) $ echo "Mac 1 cache says: $(getent hosts app.teamX.test)"; dig app.teamX.test +noall +answer; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+Mac 1 cache says: 10.77.0.20      app.teamX.test
+app.teamX.test.		29	IN	A	10.77.0.20
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+[2026-11-23 04:01:29 UTC] mac4 (10.77.0.90) $ lab cache-flush; echo "Mac 4 fresh lookup: $(getent hosts app.teamX.test)"; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+client DNS cache flushed on mac4
+Mac 4 fresh lookup: 10.77.0.90      app.teamX.test
+HTTP/2 200  x-backend: A x-edge: mac4-standby-nginx
+
+(waiting 31 seconds: Mac 1 cached answer expires (TTL 30))
+
+## After expiry: Mac 1 now uses the standby edge, with trusted TLS and A/B balancing (P2E-04)
+
+[2026-11-23 04:02:00 UTC] mac1 (10.77.0.10) $ getent hosts app.teamX.test; curl -sS -o /dev/null -w "TLS verify result %{ssl_verify_result} (0 = trusted)\n" https://app.teamX.test/api/status; for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -; done
+10.77.0.90      app.teamX.test
+TLS verify result 0 (0 = trusted)
+HTTP/2 200  x-backend: A x-edge: mac4-standby-nginx
+HTTP/2 200  x-backend: B x-edge: mac4-standby-nginx
+HTTP/2 200  x-backend: A x-edge: mac4-standby-nginx
+HTTP/2 200  x-backend: B x-edge: mac4-standby-nginx
+HTTP/2 200  x-backend: A x-edge: mac4-standby-nginx
+HTTP/2 200  x-backend: B x-edge: mac4-standby-nginx
+
+## Rollback to Mac 2 (P2E-05)
+
+[2026-11-23 04:02:01 UTC] mac1 (10.77.0.10) $ lab render-dns 10.77.0.20 && lab dns-restart
+Rendered primary dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac1
+dnsmasq started on mac1
+
+[2026-11-23 04:02:01 UTC] mac3 (10.77.0.80) $ lab render-dns 10.77.0.20 && lab dns-restart
+Rendered backup dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac3
+dnsmasq started on mac3
+
+[2026-11-23 04:02:01 UTC] mac4 (10.77.0.90) $ lab nginx-stop; rm -f /etc/nginx/conf.d/teamX-standby.conf
+nginx stopped on mac4
+
+[2026-11-23 04:02:02 UTC] mac1 (10.77.0.10) $ lab cache-flush; getent hosts app.teamX.test; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+client DNS cache flushed on mac1
+10.77.0.20      app.teamX.test
+HTTP/2 200  x-backend: A x-edge: mac2-nginx

@@ -1,0 +1,121 @@
+DOCKER EMULATION EVIDENCE: not captured on the real Macs.
+Four containers stand in for Mac 1 to Mac 4 with the roles from the GitHub issues.
+Configs were rendered by the repo's 02_config/phase2 scripts; pf is applied as equivalent iptables rules.
+Lab subnets: client LAN 10.77.0.0/26, server LAN 10.77.0.64/26, Mac 2 routes between them.
+Mac 1 10.77.0.10 | Mac 2 10.77.0.20 (client side) and 10.77.0.70 (server side) | Mac 3 10.77.0.80 | Mac 4 10.77.0.90
+Extension: A, backup DNS resolver (issues P2-07, P2-08, P2-10)
+
+## Primary DNS on Mac 1 (P2-07): rendered by mac1-dns-phase2.sh, TTL 30
+
+[2026-11-23 04:00:17 UTC] mac1 (10.77.0.10) $ grep -E "^(listen-address|host-record|local-ttl)" /etc/teamX/dns.conf
+listen-address=127.0.0.1,10.77.0.10
+host-record=app.teamX.test,10.77.0.20
+host-record=api.teamX.test,10.77.0.20
+local-ttl=30
+
+[2026-11-23 04:00:17 UTC] mac1 (10.77.0.10) $ dig @10.77.0.10 app.teamX.test +noall +answer; dig @10.77.0.10 api.teamX.test +noall +answer
+app.teamX.test.		30	IN	A	10.77.0.20
+api.teamX.test.		30	IN	A	10.77.0.20
+
+## Backup DNS on Mac 3 (P2-08): rendered by mac3-backup-dns.sh, same records
+
+[2026-11-23 04:00:18 UTC] mac3 (10.77.0.80) $ ss -lunp "sport = :53"
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess
+UNCONN 0      0          127.0.0.1:53        0.0.0.0:*          
+UNCONN 0      0         10.77.0.80:53        0.0.0.0:*          
+
+[2026-11-23 04:00:18 UTC] mac3 (10.77.0.80) $ dig @10.77.0.80 app.teamX.test +noall +answer
+app.teamX.test.		30	IN	A	10.77.0.20
+
+## Mac 4 client lists both resolvers, primary first (P2-10, P2A-03)
+
+[2026-11-23 04:00:18 UTC] mac4 (10.77.0.90) $ grep -E "^(server|strict-order)" /etc/teamX/client-cache.conf; cat /etc/resolv.conf
+strict-order
+server=10.77.0.10
+server=10.77.0.80
+nameserver 127.0.0.53
+options timeout:2 attempts:2
+
+[2026-11-23 04:00:18 UTC] mac4 (10.77.0.90) $ lab cache-flush; dig app.teamX.test +noall +answer; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+client DNS cache flushed on mac4
+app.teamX.test.		30	IN	A	10.77.0.20
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+
+[2026-11-23 04:00:18 UTC] mac1 (10.77.0.10) $ tail -n 2 /usr/local/var/log/dnsmasq.log
+Nov 23 04:00:18 dnsmasq[1107]: query[AAAA] app.teamX.test from 10.77.0.90
+Nov 23 04:00:18 dnsmasq[1107]: config app.teamX.test is NODATA-IPv6
+
+## Stop the primary (Mac 1 dnsmasq) and resolve again from Mac 4 (P2A-04)
+
+[2026-11-23 04:00:18 UTC] mac1 (10.77.0.10) $ lab dns-stop
+dnsmasq stopped on mac1
+
+[2026-11-23 04:00:19 UTC] mac4 (10.77.0.90) $ dig @10.77.0.10 app.teamX.test +tries=1 +time=2
+;; communications error to 10.77.0.10#53: connection refused
+
+; <<>> DiG 9.18.49-1~deb12u3-Debian <<>> @10.77.0.10 app.teamX.test +tries=1 +time=2
+; (1 server found)
+;; global options: +cmd
+;; no servers could be reached
+(exit status 9)
+
+[2026-11-23 04:00:19 UTC] mac4 (10.77.0.90) $ lab cache-flush; dig app.teamX.test +noall +answer; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+client DNS cache flushed on mac4
+;; communications error to 127.0.0.53#53: timed out
+app.teamX.test.		30	IN	A	10.77.0.20
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+[2026-11-23 04:00:23 UTC] mac3 (10.77.0.80) $ tail -n 4 /usr/local/var/log/dnsmasq.log
+Nov 23 04:00:21 dnsmasq[1112]: query[A] app.teamX.test from 10.77.0.90
+Nov 23 04:00:21 dnsmasq[1112]: config app.teamX.test is 10.77.0.20
+Nov 23 04:00:23 dnsmasq[1112]: query[AAAA] app.teamX.test from 10.77.0.90
+Nov 23 04:00:23 dnsmasq[1112]: config app.teamX.test is NODATA-IPv6
+
+## Restore the primary (P2A-05)
+
+[2026-11-23 04:00:23 UTC] mac1 (10.77.0.10) $ lab dns-start
+dnsmasq started on mac1
+
+[2026-11-23 04:00:24 UTC] mac4 (10.77.0.90) $ lab cache-flush; dig app.teamX.test +noall +answer
+client DNS cache flushed on mac4
+app.teamX.test.		30	IN	A	10.77.0.20
+
+[2026-11-23 04:00:24 UTC] mac1 (10.77.0.10) $ tail -n 2 /usr/local/var/log/dnsmasq.log
+Nov 23 04:00:24 dnsmasq[1188]: query[A] app.teamX.test from 10.77.0.90
+Nov 23 04:00:24 dnsmasq[1188]: config app.teamX.test is 10.77.0.20
+
+## DNS failure versus application failure
+
+[2026-11-23 04:00:24 UTC] mac1 (10.77.0.10) $ lab dns-stop
+dnsmasq stopped on mac1
+
+[2026-11-23 04:00:24 UTC] mac3 (10.77.0.80) $ lab dns-stop
+dnsmasq stopped on mac3
+
+[2026-11-23 04:00:24 UTC] mac4 (10.77.0.90) $ lab cache-flush; curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+client DNS cache flushed on mac4
+curl: (6) Could not resolve host: app.teamX.test
+
+
+[2026-11-23 04:00:29 UTC] mac1 (10.77.0.10) $ lab dns-start
+dnsmasq started on mac1
+
+[2026-11-23 04:00:29 UTC] mac3 (10.77.0.80) $ lab dns-start
+dnsmasq started on mac3
+
+[2026-11-23 04:00:29 UTC] mac3 (10.77.0.80) $ lab backend-stop
+backend stopped on mac3
+
+[2026-11-23 04:00:29 UTC] mac4 (10.77.0.90) $ lab backend-stop
+backend stopped on mac4
+
+[2026-11-23 04:00:29 UTC] mac4 (10.77.0.90) $ lab cache-flush; dig app.teamX.test +short; curl -sS -o /dev/null -w "HTTP %{http_code} from %{remote_ip}\n" https://app.teamX.test/api/status
+client DNS cache flushed on mac4
+10.77.0.20
+HTTP 502 from 10.77.0.20
+
+[2026-11-23 04:00:30 UTC] mac3 (10.77.0.80) $ lab backend-start
+Backend A started on mac3:3001
+
+[2026-11-23 04:00:30 UTC] mac4 (10.77.0.90) $ lab backend-start
+Backend B started on mac4:3002

@@ -1,0 +1,86 @@
+DOCKER EMULATION EVIDENCE: not captured on the real Macs.
+Four containers stand in for Mac 1 to Mac 4 with the roles from the GitHub issues.
+Configs were rendered by the repo's 02_config/phase2 scripts; pf is applied as equivalent iptables rules.
+Lab subnets: client LAN 10.77.0.0/26, server LAN 10.77.0.64/26, Mac 2 routes between them.
+Mac 1 10.77.0.10 | Mac 2 10.77.0.20 (client side) and 10.77.0.70 (server side) | Mac 3 10.77.0.80 | Mac 4 10.77.0.90
+Extension: C, backend service isolation (issues P2-11, P2-12, P2-13, P2-14)
+
+## Before isolation: a client can reach the backends directly
+
+[2026-11-23 04:01:10 UTC] mac1 (10.77.0.10) $ curl -sS -m 3 http://10.77.0.80:3001/api/status | head -3
+{
+  "status": "ok",
+  "backend": "A",
+
+## Mac 3 isolates port 3001, only Mac 2's server side IP allowed (P2C-01)
+
+[2026-11-23 04:01:10 UTC] mac3 (10.77.0.80) $ lab fw-isolate 3001 10.77.0.70
+pf anchor rendered by pf-backend-isolate.sh:
+  # ---- teamX-backend PF anchor rules ----
+  pass in quick on lo0 proto tcp to any port 3001
+  pass in quick on en0 proto tcp from 10.77.0.70 to any port 3001
+  block return-rst in quick on en0 proto tcp to any port 3001
+iptables equivalent now loaded (TEAMX-BACKEND):
+  -N TEAMX-BACKEND
+  -A TEAMX-BACKEND -i lo -p tcp -m tcp --dport 3001 -j ACCEPT
+  -A TEAMX-BACKEND -s 10.77.0.70/32 ! -i lo -p tcp -m tcp --dport 3001 -j ACCEPT
+  -A TEAMX-BACKEND ! -i lo -p tcp -m tcp --dport 3001 -j REJECT --reject-with tcp-reset
+
+## Mac 4 isolates port 3002 (P2C-02)
+
+[2026-11-23 04:01:10 UTC] mac4 (10.77.0.90) $ lab fw-isolate 3002 10.77.0.70
+pf anchor rendered by pf-backend-isolate.sh:
+  # ---- teamX-backend PF anchor rules ----
+  pass in quick on lo0 proto tcp to any port 3002
+  pass in quick on en0 proto tcp from 10.77.0.70 to any port 3002
+  block return-rst in quick on en0 proto tcp to any port 3002
+iptables equivalent now loaded (TEAMX-BACKEND):
+  -N TEAMX-BACKEND
+  -A TEAMX-BACKEND -i lo -p tcp -m tcp --dport 3002 -j ACCEPT
+  -A TEAMX-BACKEND -s 10.77.0.70/32 ! -i lo -p tcp -m tcp --dport 3002 -j ACCEPT
+  -A TEAMX-BACKEND ! -i lo -p tcp -m tcp --dport 3002 -j REJECT --reject-with tcp-reset
+
+## Mac 1 client: direct backend ports refused with RST, HTTPS through the edge works (P2C-03)
+
+[2026-11-23 04:01:10 UTC] mac1 (10.77.0.10) $ curl -sS -m 3 http://10.77.0.80:3001/api/status
+curl: (7) Failed to connect to 10.77.0.80 port 3001 after 0 ms: Couldn't connect to server
+(exit status 7)
+
+[2026-11-23 04:01:10 UTC] mac1 (10.77.0.10) $ curl -sS -m 3 http://10.77.0.90:3002/api/status
+curl: (7) Failed to connect to 10.77.0.90 port 3002 after 0 ms: Couldn't connect to server
+(exit status 7)
+
+[2026-11-23 04:01:10 UTC] mac1 (10.77.0.10) $ curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+## Mac 4 is on the same subnet as Mac 3 and is still refused on 3001
+
+[2026-11-23 04:01:11 UTC] mac4 (10.77.0.90) $ curl -sS -m 3 http://10.77.0.80:3001/api/status
+curl: (7) Failed to connect to 10.77.0.80 port 3001 after 0 ms: Couldn't connect to server
+(exit status 7)
+
+## Mac 2 edge can still reach both backends directly (P2C-04)
+
+[2026-11-23 04:01:11 UTC] mac2 (10.77.0.20/10.77.0.70) $ curl -sS -m 3 -w "  -> HTTP %{http_code}\n" -o /dev/null http://10.77.0.80:3001/api/status; curl -sS -m 3 -w "  -> HTTP %{http_code}\n" -o /dev/null http://10.77.0.90:3002/api/status
+  -> HTTP 200
+  -> HTTP 200
+
+[2026-11-23 04:01:11 UTC] mac3 (10.77.0.80) $ iptables -L TEAMX-BACKEND -v -n
+Chain TEAMX-BACKEND (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 ACCEPT     6    --  lo     *       0.0.0.0/0            0.0.0.0/0            tcp dpt:3001
+    7   461 ACCEPT     6    --  !lo    *       10.77.0.70           0.0.0.0/0            tcp dpt:3001
+    2   120 REJECT     6    --  !lo    *       0.0.0.0/0            0.0.0.0/0            tcp dpt:3001 reject-with tcp-reset
+
+## Rollback on both backends (P2C-05, P2C-06)
+
+[2026-11-23 04:01:11 UTC] mac3 (10.77.0.80) $ lab fw-rollback
+firewall restored to the saved Phase 1 state on mac3
+-P INPUT ACCEPT
+
+[2026-11-23 04:01:11 UTC] mac4 (10.77.0.90) $ lab fw-rollback
+firewall restored to the saved Phase 1 state on mac4
+-P INPUT ACCEPT
+
+[2026-11-23 04:01:12 UTC] mac1 (10.77.0.10) $ curl -sS -m 3 -w "  -> HTTP %{http_code}\n" -o /dev/null http://10.77.0.80:3001/api/status
+  -> HTTP 200

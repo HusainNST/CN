@@ -1,0 +1,74 @@
+DOCKER EMULATION EVIDENCE: not captured on the real Macs.
+Four containers stand in for Mac 1 to Mac 4 with the roles from the GitHub issues.
+Configs were rendered by the repo's 02_config/phase2 scripts; pf is applied as equivalent iptables rules.
+Lab subnets: client LAN 10.77.0.0/26, server LAN 10.77.0.64/26, Mac 2 routes between them.
+Mac 1 10.77.0.10 | Mac 2 10.77.0.20 (client side) and 10.77.0.70 (server side) | Mac 3 10.77.0.80 | Mac 4 10.77.0.90
+Extension: B, DNS TTL and controlled record change (issue P2-10)
+Client cache: Mac 4 runs a caching stub that plays the part of macOS mDNSResponder.
+'getent hosts' goes through that cache (macOS: dscacheutil -q host); 'dig @<server>' asks the server directly.
+Flush: SIGHUP to the cache (macOS: sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder).
+
+## Initial answer with TTL 30 (P2B-01)
+
+[2026-11-23 04:00:31 UTC] mac4 (10.77.0.90) $ lab cache-flush; getent hosts app.teamX.test; dig app.teamX.test +noall +answer
+client DNS cache flushed on mac4
+10.77.0.20      app.teamX.test
+app.teamX.test.		30	IN	A	10.77.0.20
+
+## Change app.teamX.test to 10.77.0.90 on Mac 1 and Mac 3 in lockstep
+
+[2026-11-23 04:00:31 UTC] mac1 (10.77.0.10) $ lab render-dns 10.77.0.90 && lab dns-restart
+Rendered primary dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac1
+dnsmasq started on mac1
+
+[2026-11-23 04:00:31 UTC] mac3 (10.77.0.80) $ lab render-dns 10.77.0.90 && lab dns-restart
+Rendered backup dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac3
+dnsmasq started on mac3
+
+## Cached old answer until the TTL runs out, then the new one (P2B-02)
+
+[2026-11-23 04:00:32 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.20  remaining_ttl=29  server_says=10.77.0.90
+
+[2026-11-23 04:00:37 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.20  remaining_ttl=24  server_says=10.77.0.90
+
+[2026-11-23 04:00:42 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.20  remaining_ttl=19  server_says=10.77.0.90
+
+[2026-11-23 04:00:48 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.20  remaining_ttl=13  server_says=10.77.0.90
+
+[2026-11-23 04:00:53 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.20  remaining_ttl=8  server_says=10.77.0.90
+
+[2026-11-23 04:00:58 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.20  remaining_ttl=3  server_says=10.77.0.90
+
+[2026-11-23 04:01:03 UTC] mac4 (10.77.0.90) $ echo "cache=$(getent hosts app.teamX.test | cut -d" " -f1)  remaining_ttl=$(dig app.teamX.test +noall +answer | awk "{print \$2}")  server_says=$(dig @10.77.0.10 app.teamX.test +short)"
+cache=10.77.0.90  remaining_ttl=30  server_says=10.77.0.90
+
+## Manual flush gives the new answer immediately (P2B-03)
+
+[2026-11-23 04:01:09 UTC] mac1 (10.77.0.10) $ lab render-dns 10.77.0.20 && lab dns-restart
+Rendered primary dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac1
+dnsmasq started on mac1
+
+[2026-11-23 04:01:09 UTC] mac3 (10.77.0.80) $ lab render-dns 10.77.0.20 && lab dns-restart
+Rendered backup dnsmasq configuration to /etc/teamX/dns.conf
+dnsmasq stopped on mac3
+dnsmasq started on mac3
+
+[2026-11-23 04:01:09 UTC] mac4 (10.77.0.90) $ echo "before flush: $(getent hosts app.teamX.test)"; lab cache-flush; echo "after flush:  $(getent hosts app.teamX.test)"
+before flush: 10.77.0.90      app.teamX.test
+client DNS cache flushed on mac4
+after flush:  10.77.0.20      app.teamX.test
+
+## Both resolvers restored to Mac 2
+
+[2026-11-23 04:01:09 UTC] mac4 (10.77.0.90) $ dig @10.77.0.10 app.teamX.test +short; dig @10.77.0.80 app.teamX.test +short
+10.77.0.20
+10.77.0.20

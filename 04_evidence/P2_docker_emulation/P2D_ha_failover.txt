@@ -1,0 +1,69 @@
+DOCKER EMULATION EVIDENCE: not captured on the real Macs.
+Four containers stand in for Mac 1 to Mac 4 with the roles from the GitHub issues.
+Configs were rendered by the repo's 02_config/phase2 scripts; pf is applied as equivalent iptables rules.
+Lab subnets: client LAN 10.77.0.0/26, server LAN 10.77.0.64/26, Mac 2 routes between them.
+Mac 1 10.77.0.10 | Mac 2 10.77.0.20 (client side) and 10.77.0.70 (server side) | Mac 3 10.77.0.80 | Mac 4 10.77.0.90
+Extension: D, high availability failover (issues P2-13, P2-14)
+nginx upstream: max_fails=1 fail_timeout=10s, proxy_next_upstream error timeout http_502 http_503
+
+## Both backends up (P2D-01)
+
+[2026-11-23 04:01:12 UTC] mac1 (10.77.0.10) $ for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -; done
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+
+## Stop Backend A on Mac 3 (P2D-02)
+
+[2026-11-23 04:01:12 UTC] mac3 (10.77.0.80) $ lab backend-stop
+backend stopped on mac3
+
+[2026-11-23 04:01:12 UTC] mac1 (10.77.0.10) $ for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -; done
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+## Restart Backend A, wait past fail_timeout (P2D-03)
+
+[2026-11-23 04:01:13 UTC] mac3 (10.77.0.80) $ lab backend-start
+Backend A started on mac3:3001
+
+(waiting 11 seconds: fail_timeout=10s must expire before nginx retries A)
+
+[2026-11-23 04:01:25 UTC] mac1 (10.77.0.10) $ for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -D - https://app.teamX.test/api/status | tr -d "\r" | grep -Ei "^(HTTP|x-backend|x-edge)" | paste -sd" " -; done
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+HTTP/2 200  x-backend: A x-edge: mac2-nginx
+HTTP/2 200  x-backend: B x-edge: mac2-nginx
+
+## Mac 2 edge access log across stop and recovery (P2D-04)
+
+[2026-11-23 04:01:25 UTC] mac2 (10.77.0.20/10.77.0.70) $ tail -n 20 /usr/local/var/log/nginx/teamX_access.log
+10.77.0.90 [23/Nov/2026:04:00:29 +0000] "GET /api/status HTTP/2.0" 502 -> upstream=10.77.0.80:3001, 10.77.0.90:3002 (502, 502) 0.000 s
+10.77.0.10 [23/Nov/2026:04:01:11 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.002 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.80:3001 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.000 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.80:3001 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.80:3001 (200) 0.000 s
+10.77.0.10 [23/Nov/2026:04:01:12 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:13 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.80:3001, 10.77.0.90:3002 (502, 200) 0.000 s
+10.77.0.10 [23/Nov/2026:04:01:13 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:13 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:13 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.000 s
+10.77.0.10 [23/Nov/2026:04:01:13 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:25 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:25 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.000 s
+10.77.0.10 [23/Nov/2026:04:01:25 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.80:3001 (200) 0.002 s
+10.77.0.10 [23/Nov/2026:04:01:25 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:25 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.80:3001 (200) 0.001 s
+10.77.0.10 [23/Nov/2026:04:01:25 +0000] "GET /api/status HTTP/2.0" 200 -> upstream=10.77.0.90:3002 (200) 0.001 s
