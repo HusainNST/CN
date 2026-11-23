@@ -241,7 +241,7 @@ services.
 | DNS | One resolver on Mac 1, `local-ttl=60` | Primary on Mac 1 plus a backup on Mac 3 with the same records; `local-ttl=30` on both (Ext A, B) |
 | Client resolvers | Mac 1 only | Mac 1 first, then Mac 3 |
 | Backend access | Ports 3001 and 3002 open to the whole LAN | `pf` anchor `teamX-backend` on Mac 3 and Mac 4 allows only the edges and loopback (Ext C) |
-| Backend failure | Round-robin with retry | Passive health check `max_fails=1 fail_timeout=10s` and `proxy_next_upstream`; recovery is automatic (Ext D) |
+| Backend failure | Passive health check `max_fails=1 fail_timeout=10s` with `proxy_next_upstream` | Same mechanism, upstreams moved to the Phase 2 addresses; failover with Backend A stopped and automatic recovery now demonstrated (Ext D) |
 | Edge | Mac 2 only | Mac 2 primary; Mac 4 standby nginx used only after a DNS cutover (Ext E) |
 | Troubleshooting | Failure demos | Layer-by-layer [troubleshooting runbook](../02_config/phase2/troubleshooting_runbook.md) for the injected fault (Ext F) |
 
