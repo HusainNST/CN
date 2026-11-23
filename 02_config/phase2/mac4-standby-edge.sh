@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ABOUTME: Mac 4 standby HTTPS edge for CN Project Phase 2 (Extension E): standby key/CSR and nginx config.
 # ABOUTME: The CSR is signed on Mac 2; teamX-rootCA.key never leaves Mac 2 and no private key goes in the repo.
-# ABOUTME: The standby CSR holds only the public key, so it is committed at 02_config/phase2/app.teamX.test-standby.csr.
+# ABOUTME: The standby CSR holds only the public key, so PR #30 commits it at 02_config/phase2/app.teamX.test-standby.csr.
 #
 # Usage:
 #   ./mac4-standby-edge.sh --generate-csr [--force]           # key + CSR in ~/cn-project/tls
@@ -27,8 +27,11 @@ valid_ipv4() {
   done
 }
 
+# macOS ships LibreSSL as /usr/bin/openssl, so put Homebrew's OpenSSL 3 first (as Phase 1 mac2-edge-setup.sh does).
 need_openssl3() {
-  openssl version 2>/dev/null | grep -q '^OpenSSL 3' || die "need OpenSSL 3.x on PATH"
+  local prefix
+  prefix="$(brew --prefix openssl@3 2>/dev/null)" && PATH="$prefix/bin:$PATH"
+  openssl version 2>/dev/null | grep -q '^OpenSSL 3' || die "need OpenSSL 3.x (brew install openssl@3)"
 }
 
 if [ "${1:-}" = "--generate-csr" ]; then
@@ -38,9 +41,9 @@ if [ "${1:-}" = "--generate-csr" ]; then
     die "$KEY already exists; pass --force to replace it"
   fi
   mkdir -p "$TLS_DIR"
-  (umask 077 && openssl req -new -newkey rsa:2048 -nodes -keyout "$KEY" -out "$CSR" \
+  err="$( (umask 077 && openssl req -new -newkey rsa:2048 -nodes -keyout "$KEY" -out "$CSR" \
     -subj "/CN=app.teamX.test/O=CN Project teamX" \
-    -addext "subjectAltName=DNS:app.teamX.test,DNS:api.teamX.test" 2>/dev/null)
+    -addext "subjectAltName=DNS:app.teamX.test,DNS:api.teamX.test") 2>&1 )" || die "openssl req failed: $err"
   chmod 600 "$KEY"
   openssl req -in "$CSR" -noout -verify
   openssl req -in "$CSR" -noout -text | grep -E "Subject:|DNS:"
@@ -50,7 +53,7 @@ fi
 
 RENDER_ONLY=""
 if [ "${1:-}" = "--render-only" ]; then
-  [ $# -ge 2 ] || die "$USAGE"
+  [ $# -ge 2 ] && [ -n "$2" ] || die "$USAGE"
   RENDER_ONLY="$2"
   shift 2
 fi
@@ -64,6 +67,9 @@ LOG_DIR="$PREFIX/var/log/nginx"
 if [ -z "$RENDER_ONLY" ]; then
   [ -f "$CRT" ] && [ -f "$KEY" ] || die "missing $CRT or $KEY (run --generate-csr, then get the CSR signed on Mac 2)"
   need_openssl3
+  # verify only proves the CA signed the cert; a --generate-csr --force after signing leaves a cert for an old key.
+  [ "$(openssl x509 -noout -pubkey -in "$CRT")" = "$(openssl pkey -pubout -in "$KEY")" ] \
+    || die "$CRT does not match $KEY (was --generate-csr --force run after signing? get the new CSR signed)"
   openssl verify -CAfile "$ROOT_CA" "$CRT" || die "$CRT does not chain to teamX-rootCA"
   command -v nginx >/dev/null || die "nginx not installed"
   OUT="$PREFIX/etc/nginx/servers/teamX.conf"

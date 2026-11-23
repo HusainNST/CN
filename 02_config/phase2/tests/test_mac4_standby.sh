@@ -7,7 +7,9 @@ PHASE2_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PHASE2_DIR/mac4-standby-edge.sh"
 RUNBOOK="$PHASE2_DIR/troubleshooting_runbook.md"
 TMP="$(mktemp -d /tmp/cn_test_mac4_XXXXXX)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'chmod -R u+w "$TMP"; rm -rf "$TMP"' EXIT
+# Same OpenSSL 3 lookup as the script, so the CSR tests run on a stock Mac too.
+OSSL_PREFIX="$(brew --prefix openssl@3 2>/dev/null)" && PATH="$OSSL_PREFIX/bin:$PATH"
 PASS=0; FAIL=0
 
 ok()   { PASS=$((PASS + 1)); echo "  [PASS] $1"; }
@@ -15,6 +17,13 @@ bad()  { FAIL=$((FAIL + 1)); echo "  [FAIL] $1" >&2; }
 check() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$name"; else bad "$name"; fi; }
 refuse() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then bad "$name"; else ok "$name"; fi; }
 has()  { check "$3" grep -Fq -- "$2" "$1"; }
+# Must fail AND say why on stderr, so an unrelated failure can't pass the test.
+refuse_msg() {
+  local name="$1" msg="$2"; shift 2
+  if "$@" >/dev/null 2>"$TMP/err"; then bad "$name"
+  elif grep -Fq -- "$msg" "$TMP/err"; then ok "$name"
+  else bad "$name (stderr: $(head -c 200 "$TMP/err"))"; fi
+}
 
 echo "1. Syntax"
 check "bash -n mac4-standby-edge.sh" bash -n "$SCRIPT"
@@ -26,6 +35,7 @@ refuse "octet > 255 rejected"           bash "$SCRIPT" --render-only "$TMP/x.con
 refuse "leading-zero octet rejected"    bash "$SCRIPT" --render-only "$TMP/x.conf" 10.7.018.190
 refuse "extra argument rejected"        bash "$SCRIPT" --render-only "$TMP/x.conf" 10.7.18.190 10.7.24.166
 refuse "--render-only without path"     bash "$SCRIPT" --render-only
+refuse_msg "--render-only empty path rejected" "usage:" env CN_TLS_DIR="$TMP/empty" bash "$SCRIPT" --render-only "" 10.7.18.190
 refuse "unknown flag rejected"          bash "$SCRIPT" --bogus 10.7.18.190
 check  "bad IP writes no file"          test ! -e "$TMP/x.conf"
 
@@ -49,7 +59,7 @@ refuse "no unexpanded shell vars" grep -Fq '${' "$CONF"
 refuse "no mac2 edge label" grep -Fq 'mac2-nginx' "$CONF"
 
 echo "4. Live mode refuses without a signed cert"
-refuse "missing standby cert fails" env CN_TLS_DIR="$TMP/empty" bash "$SCRIPT" 10.7.18.190
+refuse_msg "missing standby cert fails" "app.teamX.test-standby.crt" env CN_TLS_DIR="$TMP/empty" bash "$SCRIPT" 10.7.18.190
 
 echo "5. CSR generation"
 if openssl version 2>/dev/null | grep -q '^OpenSSL 3'; then
@@ -67,6 +77,12 @@ if openssl version 2>/dev/null | grep -q '^OpenSSL 3'; then
   check "existing key untouched" test "$(openssl pkey -in "$KEY" -pubout 2>/dev/null)" = "$BEFORE"
   check "--force regenerates" env CN_TLS_DIR="$CSR_DIR" bash "$SCRIPT" --generate-csr --force
   check "--force made a new key" test "$(openssl pkey -in "$KEY" -pubout 2>/dev/null)" != "$BEFORE"
+  # A cert issued for an older key must stop live mode before it touches nginx.
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout "$TMP/old.key" -subj "/CN=app.teamX.test" -days 1 \
+    -out "$CSR_DIR/app.teamX.test-standby.crt" >/dev/null 2>&1
+  refuse_msg "cert/key mismatch stops live mode" "does not match" env CN_TLS_DIR="$CSR_DIR" bash "$SCRIPT" 10.7.18.190
+  mkdir -p "$TMP/ro" && chmod 500 "$TMP/ro"
+  refuse_msg "failed CSR explains why" "openssl req failed" env CN_TLS_DIR="$TMP/ro" bash "$SCRIPT" --generate-csr
 else
   echo "  [SKIP] OpenSSL 3 not on PATH"
 fi

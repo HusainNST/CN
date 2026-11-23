@@ -38,7 +38,7 @@ listening (`lsof -nP -iTCP:3001 -sTCP:LISTEN`). Undo pf with
 | Check | Healthy result |
 |---|---|
 | `openssl s_client -connect app.teamX.test:443 -servername app.teamX.test </dev/null 2>/dev/null \| grep -E "subject=\|issuer=\|Verify return"` | issuer `teamX Local Root CA`, `Verify return code: 0 (ok)` |
-| `... \| openssl x509 -noout -ext subjectAltName` | `DNS:app.teamX.test, DNS:api.teamX.test` |
+| `openssl s_client -connect app.teamX.test:443 -servername app.teamX.test </dev/null 2>/dev/null \| openssl x509 -noout -text \| grep DNS:` | `DNS:app.teamX.test, DNS:api.teamX.test` |
 | `curl -sv https://app.teamX.test/ -o /dev/null 2>&1 \| grep -E "SSL connection\|ALPN"` | TLSv1.3 or TLSv1.2, ALPN `h2` |
 
 Common faults: client has not trusted `02_config/teamX-rootCA.crt`, cert
@@ -49,7 +49,7 @@ the standby cert was signed by some CA other than teamX-rootCA.
 
 | Check | Healthy result |
 |---|---|
-| `curl -sI https://app.teamX.test/ \| grep -iE "^HTTP\|x-edge\|x-upstream"` | `200`, `X-Edge` names the active edge |
+| `curl -s -D - -o /dev/null https://app.teamX.test/ \| grep -iE "^HTTP\|x-edge\|x-upstream"` | `200`, `X-Edge` names the active edge |
 | `for i in 1 2 3 4; do curl -s https://app.teamX.test/ -D - -o /dev/null \| grep -i x-upstream; done` | alternates between Backend A and B |
 | `sudo nginx -t` on the edge | `syntax is ok`, `test is successful` |
 | `tail -n 20 $(brew --prefix)/var/log/nginx/teamX_access.log` on the edge | requests with an upstream address and status |
