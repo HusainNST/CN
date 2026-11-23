@@ -65,7 +65,7 @@ yet.
 | --- | --- | --- |
 | Mac 3 anchor loaded, Phase 1 `pf.conf` backed up first | Rules pass `lo0`, Mac 2 and Mac 4, reset others on 3001; backup saved 15:34 | `04_evidence/P2_C_service_isolation/P2C-01_mac3_pf_anchor_loaded.png` |
 | Mac 4 anchor loaded | Rules pass `lo0` and Mac 2, reset others on 3002; `Status: Enabled` | `04_evidence/P2_C_service_isolation/P2C-02_mac4_pf_anchor_loaded.png` |
-| Client blocked, edge still works | From Mac 1 at 15:58:38, direct connections to 3001 and 3002 get a TCP reset while `https://app.teamX.test` returns `200` | `P2C-03_mac1_direct_backends_blocked_edge_ok.png` (pending, PR #43) |
+| Client blocked, edge still works | From Mac 1 at 15:58:38, direct connections to 3001 and 3002 get a TCP reset while `https://app.teamX.test` returns `200` | `04_evidence/P2_C_service_isolation/P2C-03_mac1_direct_backends_blocked_edge_ok.png` |
 | Edge allowed | From Mac 2 at 15:59:46, both backends return `200` directly | `04_evidence/P2_C_service_isolation/P2C-04_mac2_direct_backends_allowed.png` |
 | Rollback | Mac 3: anchor flushed, 0 rules, `/etc/pf.conf` identical to the Phase 1 backup | `04_evidence/P2_C_service_isolation/P2C-05_mac3_pf_rollback.png` |
 | Rollback | Mac 4: anchor flushed, pf disabled again (its Phase 1 state), `/etc/pf.conf` matches the Phase 1 backup, Backend B still answers `200` | `04_evidence/P2_C_service_isolation/P2C-06_mac4_pf_rollback.png` |
@@ -80,9 +80,9 @@ is also a test client, so isolation checks run from Mac 1 only.
 
 | Test | Result | Evidence |
 | --- | --- | --- |
-| Both backends up | Six requests from Mac 1 alternate A, B, A, B, A, B | `P2D-01_mac1_both_backends_up.png` (pending, PR #43) |
-| Backend A stopped | Six requests, all `200` from Backend B | `P2D-02_mac1_backendA_stopped_all_B.png` (pending, PR #43) |
-| Backend A restored | A and B alternate again | `P2D-03_mac1_backendA_restored_AB.png` (pending, PR #43) |
+| Both backends up | Six requests from Mac 1 alternate A, B, A, B, A, B | `04_evidence/P2_D_ha_failover/P2D-01_mac1_both_backends_up.png` |
+| Backend A stopped | Six requests, all `200` from Backend B | `04_evidence/P2_D_ha_failover/P2D-02_mac1_backendA_stopped_all_B.png` |
+| Backend A restored | A and B alternate again | `04_evidence/P2_D_ha_failover/P2D-03_mac1_backendA_restored_AB.png` |
 | Edge view of the same behaviour | Mac 2's access log: A/B at 15:40:23; the first drill request at 15:45:41 found A already down, so nginx retried B in the same request (`(502, 200)`) and the client got `200`; A back at 15:46:50 | `04_evidence/P2_D_ha_failover/P2D-04_mac2_edge_failover_access_log.png` |
 | No client errors during the drill | 180 HTTPS requests at one per second through Mac 2, 15:45:39 to 15:48:59, while A was stopped and restarted: all 180 returned `200` (A 61, B 119) | `04_evidence/P2_D_ha_failover/P2D-04b_mac2_drill_client_requests.log` |
 | Single point of failure | Mac 2's `nginx` (see Section 4, Extension D) | `04_evidence/P2_D_ha_failover/spof_analysis.md` |
@@ -93,8 +93,8 @@ request to Backend B that was in flight was reset. With `max_fails=1`, that
 single error marked B down for `fail_timeout=10s`. A was already down, so
 nginx had no live upstream (`upstream=teamX_backends (502)` in Mac 2's log)
 and returned `502` until about 15:56:18. B itself stayed healthy: Mac 2 logged
-`200`s from B from 15:56:19. Details: `P2D_note_502_burst.md` (pending,
-PR #43).
+`200`s from B from 15:56:19. Details:
+`04_evidence/P2_D_ha_failover/P2D_note_502_burst.md`.
 
 ### Extension E: controlled edge migration
 
@@ -204,7 +204,7 @@ failed signing step looked like a TLS problem, but the cause was the wrong
 - [ ] Ext A failover screenshots merged (PR #45)
 - [ ] Ext B TTL and flush captured (#10)
 - [x] Ext C Mac 4 anchor and rollback (PR #42, merged)
-- [ ] Ext C and D Mac 1 evidence merged (PR #43)
+- [x] Ext C and D Mac 1 evidence merged (PR #43)
 - [x] Ext C and D Mac 2 evidence and SPOF analysis merged (PR #44)
 - [ ] Ext E DNS cutover (#16)
 - [ ] Ext F mock drills (#17) and architecture update (#18)
