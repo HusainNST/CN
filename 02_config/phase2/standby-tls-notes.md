@@ -12,8 +12,8 @@ same CA. No client needs to install anything new.
 | `teamX-rootCA.key` | Mac 2 only | Never |
 | `teamX-rootCA.crt` | Repo and every client | Yes, it is public |
 | `app.teamX.test-standby.key` | Mac 4 only | Never |
-| `app.teamX.test-standby.csr` | Mac 4, copied to Mac 2 | Yes, it holds only the public key |
-| `app.teamX.test-standby.crt` | Mac 2 signs it, copied to Mac 4 | Yes, it is public |
+| `app.teamX.test-standby.csr` | Mac 4, committed to the repo | Yes, it holds only the public key |
+| `app.teamX.test-standby.crt` | Mac 2 signs it, committed to the repo | Yes, it is public |
 
 Why a CSR instead of copying keys: a private key proves identity. If the CA key
 left Mac 2, anyone holding the copy could mint trusted certificates for any
@@ -28,7 +28,8 @@ machine that uses it and never moves.
 openssl req -in ~/cn-project/tls/app.teamX.test-standby.csr -noout -text | grep -E "Subject:|DNS:"
 ```
 
-Send only `app.teamX.test-standby.csr` to Mac 2 (AirDrop or USB).
+Commit only the CSR, at `02_config/phase2/app.teamX.test-standby.csr`. The
+key stays in `~/cn-project/tls` on Mac 4.
 
 ## 2. Mac 2 signs it with the team root CA
 
@@ -39,6 +40,7 @@ terminal.
 
 ```sh
 export PATH="$(brew --prefix openssl@3)/bin:$PATH"
+cp 02_config/phase2/app.teamX.test-standby.csr ~/cn-project/tls/   # from the repo root
 cd ~/cn-project/tls
 cat > app.teamX.test-standby.ext <<'EOF'
 basicConstraints=CA:FALSE
@@ -58,7 +60,7 @@ the CSR. The `.ext` file is what actually puts the SANs and server usage into
 the certificate. Without it, browsers and curl reject the certificate because
 the hostname is not in the SAN.
 
-## 3. Mac 2 verifies before sending
+## 3. Mac 2 verifies, then commits the certificate
 
 ```sh
 openssl verify -CAfile teamX-rootCA.crt app.teamX.test-standby.crt
@@ -68,10 +70,17 @@ openssl x509 -in app.teamX.test-standby.crt -noout -subject -issuer -ext subject
 Expected: `app.teamX.test-standby.crt: OK`, issuer `teamX Local Root CA`, and
 both `DNS:app.teamX.test` and `DNS:api.teamX.test`.
 
-Send `app.teamX.test-standby.crt` back to Mac 4. Mac 4 places it at
-`~/cn-project/tls/app.teamX.test-standby.crt` and runs
-`02_config/phase2/mac4-standby-edge.sh <MAC3_IP>`, which checks the chain
-against `02_config/teamX-rootCA.crt` before installing the config.
+Copy the certificate into the repo and commit it at
+`02_config/phase2/app.teamX.test-standby.crt`:
+
+```sh
+cp ~/cn-project/tls/app.teamX.test-standby.crt 02_config/phase2/   # from the repo root
+```
+
+Mac 4 pulls it, copies it to `~/cn-project/tls/app.teamX.test-standby.crt`,
+and runs `02_config/phase2/mac4-standby-edge.sh <MAC3_IP>`, which checks the
+chain against `02_config/teamX-rootCA.crt` and that the certificate matches
+the key before installing the config.
 
 ## Verification output
 
