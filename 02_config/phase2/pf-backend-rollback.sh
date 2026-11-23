@@ -58,18 +58,22 @@ BACKUP_DIR="$TARGET_HOME/cn-project"
 PF_BAK="$BACKUP_DIR/pf.conf.phase1.bak"
 PF_STATE="$BACKUP_DIR/pf.state.phase1"
 
+# Stop before changing anything if the Phase 1 backup is missing; otherwise
+# /etc/pf.conf would keep a load anchor line pointing at a deleted file.
+if [ ! -f "$PF_BAK" ]; then
+  echo "Error: Backup $PF_BAK not found. Nothing was changed." >&2
+  echo "Restore /etc/pf.conf manually before removing /etc/pf.anchors/teamX-backend." >&2
+  exit 1
+fi
+
 # 1. Flush teamX-backend anchor rules
 echo "Flushing rules from anchor teamX-backend..."
 pfctl -a teamX-backend -F rules 2>/dev/null || true
 rm -f /etc/pf.anchors/teamX-backend
 
 # 2. Restore /etc/pf.conf from backup
-if [ -f "$PF_BAK" ]; then
-  cp "$PF_BAK" /etc/pf.conf
-  echo "Restored /etc/pf.conf from $PF_BAK"
-else
-  echo "Warning: Backup $PF_BAK not found. Skipping /etc/pf.conf restoration." >&2
-fi
+cp "$PF_BAK" /etc/pf.conf
+echo "Restored /etc/pf.conf from $PF_BAK"
 
 # 3. Reload pfctl
 echo "Reloading /etc/pf.conf..."

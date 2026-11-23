@@ -4,7 +4,7 @@
 #
 # Usage: ./pf-backend-isolate.sh [--render-only <OUT_ANCHOR> <OUT_PFCONF>] <PORT> <PRIMARY_EDGE_IP> [STANDBY_EDGE_IP]
 #   e.g. sudo ./pf-backend-isolate.sh 3001 10.7.22.227
-#   e.g. sudo ./pf-backend-isolate.sh 3002 10.7.22.227 10.7.24.166
+#   e.g. sudo ./pf-backend-isolate.sh 3002 10.7.22.227 10.7.3.254
 #   e.g. ./pf-backend-isolate.sh --render-only /tmp/anchor.conf /tmp/pf.conf 3001 10.7.22.227
 set -euo pipefail
 
@@ -197,7 +197,10 @@ fi
 
 # Reload /etc/pf.conf and load the teamX-backend anchor
 pfctl -f /etc/pf.conf
-pfctl -a teamX-backend -sr >/dev/null
+if ! pfctl -a teamX-backend -sr 2>/dev/null | grep -q "port = $PORT"; then
+  echo "Error: teamX-backend anchor has no rules for port $PORT after reload." >&2
+  exit 1
+fi
 if ! pfctl -sr | grep -Eq '^[[:space:]]*anchor "teamX-backend"'; then
   echo "Error: teamX-backend anchor was not loaded into the main pf ruleset." >&2
   exit 1

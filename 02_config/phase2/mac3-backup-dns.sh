@@ -141,15 +141,25 @@ fi
 
 mkdir -p "$SNAPSHOT_DIR"
 mkdir -p "$BREW_PREFIX/var/log"
-if [ ! -x "$BREW_PREFIX/sbin/dnsmasq" ] || ! "$BREW_PREFIX/sbin/dnsmasq" --test; then
-  echo "Error: dnsmasq configuration validation failed." >&2
+if [ ! -x "$BREW_PREFIX/sbin/dnsmasq" ]; then
+  echo "Error: $BREW_PREFIX/sbin/dnsmasq not found. Install with: brew install dnsmasq" >&2
   exit 1
 fi
-render_dnsmasq_conf > "$SNAPSHOT_FILE"
+
+# Validate the rendered config itself before installing it
+RENDERED_CONF="$(mktemp "${TMPDIR:-/tmp}/teamX-backup.XXXXXX")"
+trap 'rm -f "$RENDERED_CONF"' EXIT
+render_dnsmasq_conf > "$RENDERED_CONF"
+if ! "$BREW_PREFIX/sbin/dnsmasq" --test --conf-file="$RENDERED_CONF"; then
+  echo "Error: dnsmasq configuration validation failed for the rendered teamX-backup.conf." >&2
+  exit 1
+fi
+
+cp "$RENDERED_CONF" "$SNAPSHOT_FILE"
 echo "Exported snapshot to $SNAPSHOT_FILE"
 
 mkdir -p "$LIVE_CONF_DIR"
-render_dnsmasq_conf > "$LIVE_CONF"
+cp "$RENDERED_CONF" "$LIVE_CONF"
 echo "Installed live configuration to $LIVE_CONF"
 
 echo ""

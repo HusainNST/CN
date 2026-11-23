@@ -185,7 +185,7 @@ if bash "$PF_ISOLATE" --render-only "$ANCHOR_1" "$PFCONF_1" 3001 10.7.22.227 >/d
   assert_file_contains "$ANCHOR_1" "pass in quick on lo0 proto tcp to any port 3001" "Anchor lo0 pass rule present"
   assert_file_contains "$ANCHOR_1" "pass in quick proto tcp from 10.7.22.227 to any port 3001" "Anchor primary edge pass rule present"
   assert_file_contains "$ANCHOR_1" "block return-rst in quick proto tcp to any port 3001" "Anchor block return-rst rule present"
-  
+
   # Ensure count of edge pass rules is exactly 1
   EDGE_PASS_COUNT="$(grep -c "pass in quick proto tcp from" "$ANCHOR_1" || true)"
   if [ "$EDGE_PASS_COUNT" -eq 1 ]; then
