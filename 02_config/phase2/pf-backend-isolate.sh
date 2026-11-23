@@ -15,10 +15,10 @@ validate_ipv4() {
     return 1
   fi
   for octet in "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"; do
-    if (( octet < 0 || octet > 255 )); then
+    if [[ ${#octet} -gt 1 && "${octet:0:1}" == "0" ]]; then
       return 1
     fi
-    if [[ ${#octet} -gt 1 && "${octet:0:1}" == "0" ]]; then
+    if (( 10#$octet > 255 )); then
       return 1
     fi
   done
@@ -30,10 +30,10 @@ validate_port() {
   if [[ ! "$port" =~ ^[0-9]+$ ]]; then
     return 1
   fi
-  if (( port < 1 || port > 65535 )); then
+  if [[ ${#port} -gt 1 && "${port:0:1}" == "0" ]]; then
     return 1
   fi
-  if [[ ${#port} -gt 1 && "${port:0:1}" == "0" ]]; then
+  if (( 10#$port < 1 || 10#$port > 65535 )); then
     return 1
   fi
   return 0
@@ -44,11 +44,14 @@ ensure_anchor_in_pfconf() {
   if [ ! -f "$conf_file" ]; then
     mkdir -p "$(dirname "$conf_file")"
     echo 'anchor "teamX-backend"' > "$conf_file"
-  elif ! grep -q 'anchor "teamX-backend"' "$conf_file"; then
+  elif ! grep -Eq '^[[:space:]]*anchor "teamX-backend"[[:space:]]*$' "$conf_file"; then
     if [ -s "$conf_file" ] && [ "$(tail -c 1 "$conf_file" | wc -l)" -eq 0 ]; then
       echo "" >> "$conf_file"
     fi
     echo 'anchor "teamX-backend"' >> "$conf_file"
+  fi
+  if [ "$conf_file" = "/etc/pf.conf" ] && ! grep -Eq '^[[:space:]]*load anchor "teamX-backend" from "/etc/pf\.anchors/teamX-backend"[[:space:]]*$' "$conf_file"; then
+    echo 'load anchor "teamX-backend" from "/etc/pf.anchors/teamX-backend"' >> "$conf_file"
   fi
 }
 
@@ -96,15 +99,15 @@ render_anchor_rules() {
   cat <<EOF
 # ---- teamX-backend PF anchor rules ----
 pass in quick on lo0 proto tcp to any port $PORT
-pass in quick on en0 proto tcp from $PRIMARY_EDGE_IP to any port $PORT
+pass in quick proto tcp from $PRIMARY_EDGE_IP to any port $PORT
 EOF
   if [ -n "$STANDBY_EDGE_IP" ]; then
     cat <<EOF
-pass in quick on en0 proto tcp from $STANDBY_EDGE_IP to any port $PORT
+pass in quick proto tcp from $STANDBY_EDGE_IP to any port $PORT
 EOF
   fi
   cat <<EOF
-block return-rst in quick on en0 proto tcp to any port $PORT
+block return-rst in quick proto tcp to any port $PORT
 EOF
 }
 
@@ -180,6 +183,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SNAPSHOT_DIR="$REPO_ROOT/02_config/phase2/snapshots"
 mkdir -p "$SNAPSHOT_DIR"
+ANCHOR_FILE="/etc/pf.anchors/teamX-backend"
+mkdir -p "$(dirname "$ANCHOR_FILE")"
+render_anchor_rules > "$ANCHOR_FILE"
 
 if [ "$PORT" -eq 3001 ]; then
   SNAPSHOT_FILE="$SNAPSHOT_DIR/pf-mac3-3001.conf"
@@ -189,20 +195,19 @@ else
   SNAPSHOT_FILE="$SNAPSHOT_DIR/pf-$PORT.conf"
 fi
 
+# Reload /etc/pf.conf and load the teamX-backend anchor
+pfctl -f /etc/pf.conf
+pfctl -a teamX-backend -sr >/dev/null
+if ! pfctl -sr | grep -Eq '^[[:space:]]*anchor "teamX-backend"'; then
+  echo "Error: teamX-backend anchor was not loaded into the main pf ruleset." >&2
+  exit 1
+fi
+
 render_anchor_rules > "$SNAPSHOT_FILE"
 if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-  chown "$SUDO_USER" "$SNAPSHOT_FILE" 2>/dev/null || true
+  chown "$SUDO_USER" "$SNAPSHOT_DIR" "$SNAPSHOT_FILE" 2>/dev/null || true
 fi
 echo "Exported anchor snapshot to $SNAPSHOT_FILE"
-
-# Load anchor rules into pf
-TMP_ANCHOR="$(mktemp /tmp/teamX-backend-anchor.XXXXXX)"
-render_anchor_rules > "$TMP_ANCHOR"
-
-# Reload /etc/pf.conf and load the teamX-backend anchor
-pfctl -f /etc/pf.conf 2>/dev/null || true
-pfctl -a teamX-backend -f "$TMP_ANCHOR"
-rm -f "$TMP_ANCHOR"
 
 # Enable pf if not already enabled
 pfctl -e 2>/dev/null || true

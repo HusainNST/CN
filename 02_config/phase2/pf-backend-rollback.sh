@@ -12,7 +12,7 @@ MOCK_PFCONF=""
 MOCK_BAK=""
 
 if [ "${1:-}" = "--dry-run" ]; then
-  if [ $# -lt 3 ]; then
+  if [ $# -ne 3 ]; then
     echo "Error: --dry-run requires <MOCK_PFCONF> and <MOCK_BAK> file paths." >&2
     echo "Usage: $0 [--dry-run <MOCK_PFCONF> <MOCK_BAK>]" >&2
     exit 1
@@ -20,6 +20,10 @@ if [ "${1:-}" = "--dry-run" ]; then
   DRY_RUN=1
   MOCK_PFCONF="$2"
   MOCK_BAK="$3"
+fi
+if [ "$DRY_RUN" -eq 0 ] && [ "$#" -ne 0 ]; then
+  echo "Error: Unknown arguments. Usage: $0 [--dry-run <MOCK_PFCONF> <MOCK_BAK>]" >&2
+  exit 1
 fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -56,7 +60,8 @@ PF_STATE="$BACKUP_DIR/pf.state.phase1"
 
 # 1. Flush teamX-backend anchor rules
 echo "Flushing rules from anchor teamX-backend..."
-pfctl -a teamX-backend -F all 2>/dev/null || true
+pfctl -a teamX-backend -F rules 2>/dev/null || true
+rm -f /etc/pf.anchors/teamX-backend
 
 # 2. Restore /etc/pf.conf from backup
 if [ -f "$PF_BAK" ]; then
@@ -68,7 +73,7 @@ fi
 
 # 3. Reload pfctl
 echo "Reloading /etc/pf.conf..."
-pfctl -f /etc/pf.conf 2>/dev/null || true
+pfctl -f /etc/pf.conf
 
 # 4. Disable pf if originally disabled
 if [ -f "$PF_STATE" ]; then

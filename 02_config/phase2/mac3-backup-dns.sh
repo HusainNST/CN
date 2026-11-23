@@ -14,10 +14,10 @@ validate_ipv4() {
     return 1
   fi
   for octet in "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"; do
-    if (( octet < 0 || octet > 255 )); then
+    if [[ ${#octet} -gt 1 && "${octet:0:1}" == "0" ]]; then
       return 1
     fi
-    if [[ ${#octet} -gt 1 && "${octet:0:1}" == "0" ]]; then
+    if (( 10#$octet > 255 )); then
       return 1
     fi
   done
@@ -29,10 +29,10 @@ validate_ttl() {
   if [[ ! "$ttl" =~ ^[0-9]+$ ]]; then
     return 1
   fi
-  if (( ttl < 1 || ttl > 2147483647 )); then
+  if [[ ${#ttl} -gt 1 && "${ttl:0:1}" == "0" ]]; then
     return 1
   fi
-  if [[ ${#ttl} -gt 1 && "${ttl:0:1}" == "0" ]]; then
+  if (( 10#$ttl < 1 || 10#$ttl > 2147483647 )); then
     return 1
   fi
   return 0
@@ -131,8 +131,20 @@ SNAPSHOT_DIR="$REPO_ROOT/02_config/phase2/snapshots"
 SNAPSHOT_FILE="$SNAPSHOT_DIR/dnsmasq-backup-mac3.conf"
 LIVE_CONF_DIR="$BREW_PREFIX/etc/dnsmasq.d"
 LIVE_CONF="$LIVE_CONF_DIR/teamX-backup.conf"
+BREW_DNSMASQ_CONF="$BREW_PREFIX/etc/dnsmasq.conf"
+
+if [ ! -f "$BREW_DNSMASQ_CONF" ] || ! grep -Eq '^[[:space:]]*conf-dir=[^#]*dnsmasq\.d/[^,]*,?[[:space:]]*\*\.conf' "$BREW_DNSMASQ_CONF"; then
+  echo "Error: $BREW_DNSMASQ_CONF must contain an active conf-dir line for $LIVE_CONF_DIR/*.conf." >&2
+  echo "Fix: uncomment or add: conf-dir=$LIVE_CONF_DIR/,*.conf" >&2
+  exit 1
+fi
 
 mkdir -p "$SNAPSHOT_DIR"
+mkdir -p "$BREW_PREFIX/var/log"
+if [ ! -x "$BREW_PREFIX/sbin/dnsmasq" ] || ! "$BREW_PREFIX/sbin/dnsmasq" --test; then
+  echo "Error: dnsmasq configuration validation failed." >&2
+  exit 1
+fi
 render_dnsmasq_conf > "$SNAPSHOT_FILE"
 echo "Exported snapshot to $SNAPSHOT_FILE"
 
@@ -145,6 +157,6 @@ echo "==== Next Steps on Mac 3 ===="
 echo "1. Start or restart dnsmasq:"
 echo "   sudo brew services restart dnsmasq"
 echo "2. Verify dnsmasq listener on port 53:"
-echo "   lsof -nP -i:53"
+echo "   sudo lsof -nP -i:53"
 echo "3. Verify local resolution:"
 echo "   dig @$MAC3_IP app.teamX.test +noall +answer"

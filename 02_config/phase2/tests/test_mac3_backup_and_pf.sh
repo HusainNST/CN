@@ -183,15 +183,20 @@ PFCONF_1="$TMP_DIR/pf_1edge.conf"
 if bash "$PF_ISOLATE" --render-only "$ANCHOR_1" "$PFCONF_1" 3001 10.7.22.227 >/dev/null; then
   pass "pf-backend-isolate.sh renders 1-edge rule successfully"
   assert_file_contains "$ANCHOR_1" "pass in quick on lo0 proto tcp to any port 3001" "Anchor lo0 pass rule present"
-  assert_file_contains "$ANCHOR_1" "pass in quick on en0 proto tcp from 10.7.22.227 to any port 3001" "Anchor primary edge pass rule present"
-  assert_file_contains "$ANCHOR_1" "block return-rst in quick on en0 proto tcp to any port 3001" "Anchor block return-rst rule present"
+  assert_file_contains "$ANCHOR_1" "pass in quick proto tcp from 10.7.22.227 to any port 3001" "Anchor primary edge pass rule present"
+  assert_file_contains "$ANCHOR_1" "block return-rst in quick proto tcp to any port 3001" "Anchor block return-rst rule present"
   
-  # Ensure count of pass in quick on en0 is exactly 1
-  EN0_PASS_COUNT="$(grep -c "pass in quick on en0 proto tcp from" "$ANCHOR_1" || true)"
-  if [ "$EN0_PASS_COUNT" -eq 1 ]; then
-    pass "Single edge IP produces exactly 1 en0 pass rule"
+  # Ensure count of edge pass rules is exactly 1
+  EDGE_PASS_COUNT="$(grep -c "pass in quick proto tcp from" "$ANCHOR_1" || true)"
+  if [ "$EDGE_PASS_COUNT" -eq 1 ]; then
+    pass "Single edge IP produces exactly 1 edge pass rule"
   else
-    fail "Single edge IP pass count" "Expected 1 rule, got $EN0_PASS_COUNT"
+    fail "Single edge IP pass count" "Expected 1 rule, got $EDGE_PASS_COUNT"
+  fi
+  if awk '/^pass / { pass_line = NR } /^block return-rst / { block_line = NR } END { exit !(pass_line < block_line) }' "$ANCHOR_1"; then
+    pass "Pass rules precede block return-rst rule"
+  else
+    fail "PF rule order" "A pass rule must precede block return-rst"
   fi
 
   if command -v pfctl >/dev/null 2>&1; then
@@ -211,15 +216,15 @@ PFCONF_2="$TMP_DIR/pf_2edge.conf"
 if bash "$PF_ISOLATE" --render-only "$ANCHOR_2" "$PFCONF_2" 3002 10.7.22.227 10.7.24.166 >/dev/null; then
   pass "pf-backend-isolate.sh renders 2-edge rule successfully"
   assert_file_contains "$ANCHOR_2" "pass in quick on lo0 proto tcp to any port 3002" "Anchor lo0 pass rule present (3002)"
-  assert_file_contains "$ANCHOR_2" "pass in quick on en0 proto tcp from 10.7.22.227 to any port 3002" "Anchor primary edge pass rule present (3002)"
-  assert_file_contains "$ANCHOR_2" "pass in quick on en0 proto tcp from 10.7.24.166 to any port 3002" "Anchor standby edge pass rule present (3002)"
-  assert_file_contains "$ANCHOR_2" "block return-rst in quick on en0 proto tcp to any port 3002" "Anchor block return-rst rule present (3002)"
+  assert_file_contains "$ANCHOR_2" "pass in quick proto tcp from 10.7.22.227 to any port 3002" "Anchor primary edge pass rule present (3002)"
+  assert_file_contains "$ANCHOR_2" "pass in quick proto tcp from 10.7.24.166 to any port 3002" "Anchor standby edge pass rule present (3002)"
+  assert_file_contains "$ANCHOR_2" "block return-rst in quick proto tcp to any port 3002" "Anchor block return-rst rule present (3002)"
 
-  EN0_PASS_COUNT="$(grep -c "pass in quick on en0 proto tcp from" "$ANCHOR_2" || true)"
-  if [ "$EN0_PASS_COUNT" -eq 2 ]; then
-    pass "Two edge IPs produce exactly 2 en0 pass rules"
+  EDGE_PASS_COUNT="$(grep -c "pass in quick proto tcp from" "$ANCHOR_2" || true)"
+  if [ "$EDGE_PASS_COUNT" -eq 2 ]; then
+    pass "Two edge IPs produce exactly 2 edge pass rules"
   else
-    fail "Two edge IPs pass count" "Expected 2 rules, got $EN0_PASS_COUNT"
+    fail "Two edge IPs pass count" "Expected 2 rules, got $EDGE_PASS_COUNT"
   fi
 
   if command -v pfctl >/dev/null 2>&1; then
@@ -249,7 +254,7 @@ EOF
 
 # First insertion
 bash "$PF_ISOLATE" --render-only "$TMP_DIR/a1.conf" "$MOCK_PFCONF" 3001 10.7.22.227 >/dev/null
-COUNT1="$(grep -c 'anchor "teamX-backend"' "$MOCK_PFCONF" || true)"
+COUNT1="$(grep -Ec '^[[:space:]]*anchor "teamX-backend"[[:space:]]*$' "$MOCK_PFCONF" || true)"
 if [ "$COUNT1" -eq 1 ]; then
   pass "First run inserts anchor \"teamX-backend\" into mock pf.conf"
 else
@@ -258,7 +263,7 @@ fi
 
 # Second insertion (idempotency check)
 bash "$PF_ISOLATE" --render-only "$TMP_DIR/a2.conf" "$MOCK_PFCONF" 3001 10.7.22.227 >/dev/null
-COUNT2="$(grep -c 'anchor "teamX-backend"' "$MOCK_PFCONF" || true)"
+COUNT2="$(grep -Ec '^[[:space:]]*anchor "teamX-backend"[[:space:]]*$' "$MOCK_PFCONF" || true)"
 if [ "$COUNT2" -eq 1 ]; then
   pass "Second run does NOT duplicate anchor \"teamX-backend\" (idempotent)"
 else
@@ -283,6 +288,12 @@ if ! bash "$PF_ROLLBACK" --dry-run >/dev/null 2>&1; then
   pass "pf-backend-rollback.sh rejects --dry-run with missing arguments"
 else
   fail "pf-backend-rollback.sh --dry-run validation" "Did not exit non-zero"
+fi
+
+if ! bash "$PF_ROLLBACK" --help >/dev/null 2>&1; then
+  pass "pf-backend-rollback.sh rejects unknown arguments"
+else
+  fail "pf-backend-rollback.sh unknown arguments" "Did not exit non-zero"
 fi
 
 # Nonexistent backup file rejection
