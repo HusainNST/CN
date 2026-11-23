@@ -2,14 +2,16 @@
 
 ## What the Phase 2 design covers
 
-These are the design's answers to each failure. Live proof for each row is
-pending from the lab session (see Evidence).
+These are the design's answers to each failure. Live proof for each row: row 1
+is `P2D-04` (below), row 2 is `P2A-04` (#45: Mac 3 answered at 16:05:20 with
+Mac 1 stopped, HTTPS still `200`), and row 3 is `P2C-01`, `P2C-02` and
+`P2C-04`.
 
 | Failure | What keeps the service up | Where |
 | --- | --- | --- |
 | One backend stops | Mac 2 nginx marks it down after one failed attempt (`max_fails=1 fail_timeout=10s`) and retries the request on the other backend (`proxy_next_upstream error timeout http_502 http_503`) | `02_config/phase2/mac2-edge-phase2.sh` |
 | Primary DNS on Mac 1 stops | Clients fall back to the backup `dnsmasq` on Mac 3 (Extension A) | P2-07, P2-08 |
-| Clients reach a backend directly | `pf` on Mac 3 and Mac 4 allows ports 3001 and 3002 only from Mac 2 (Extension C) | P2-11, P2-12 |
+| Clients reach a backend directly | `pf` on Mac 3 and Mac 4 allows ports 3001 and 3002 only from the edges and loopback: Mac 2 on both, Mac 4's standby edge on 3001, and `lo0` (Extension C) | P2-11, P2-12 |
 
 The backend tier and the DNS tier each have two copies. The edge tier does not.
 
@@ -53,6 +55,9 @@ one LAN. In the cloud, a managed load balancer covers the edge tier.
   `P2D-03_mac1_backendA_restored_AB.png`: client side failover and recovery
   from Mac 1 (P2-13).
 - `P2D-04_mac2_edge_failover_access_log.png`: captured 23 Nov 2026. Mac 2's
-  `teamX_access.log` shows A/B alternation at 15:40:23, Backend A stopped from
-  15:45:41 (nginx gets 502 from A, retries B, client gets 200), B only until
-  15:46:48, and A/B alternation again from 15:46:50.
+  `teamX_access.log` shows A/B alternation at 15:40:23. The first logged request
+  of the drill, at 15:45:41, found Backend A already down: nginx got 502 from A
+  and retried B, and the client got 200. Requests to 15:45:49 went to B. At
+  15:46:36, after `fail_timeout`, nginx tried A again, got 502 and retried B.
+  A/B alternation resumed at 15:46:50. The grep shows those windows only, not
+  the 15:45:50 to 15:46:34 stretch.
