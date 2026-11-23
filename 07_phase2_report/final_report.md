@@ -25,7 +25,7 @@ unchanged as the Phase 1 record. Every Phase 2 change is made by a script in
 | Area | Phase 1 | Phase 2 | Where |
 | --- | --- | --- | --- |
 | LAN addresses | Recorded 28 Sep 2026 | All four Macs rechecked; every IPv4 changed by DHCP, and Mac 3's private Wi-Fi MAC changed | `01_architecture/ip_table.md`, `P2L-01` to `P2L-04` |
-| DNS | One resolver (Mac 1), `local-ttl=60` | Primary on Mac 1 and backup on Mac 3 with identical records, `local-ttl=30` | `snapshots/dnsmasq-primary-mac1.conf`, `snapshots/dnsmasq-backup-mac3.conf` |
+| DNS | One resolver (Mac 1), `local-ttl=60` | Primary on Mac 1 and backup on Mac 3 with identical records, `local-ttl=30` | `mac1-dns-phase2.sh`, `mac3-backup-dns.sh` (re-run with a new edge IP to switch records), `tests/test_mac1_dns.sh`, `snapshots/dnsmasq-primary-mac1.conf`, `snapshots/dnsmasq-backup-mac3.conf` |
 | Edge | Mac 2 `nginx` | Same config, refreshed to the Phase 2 backend IPs by `mac2-edge-phase2.sh`; the Phase 1 certificate is reused, not regenerated | `snapshots/nginx-edge-mac2.conf` |
 | Backend access | Ports 3001 and 3002 open to any host | `pf` anchor `teamX-backend` on Mac 3 and Mac 4: pass `lo0` and the edge IPs, `return-rst` for everyone else, with a scripted rollback | `pf-backend-isolate.sh`, `pf-backend-rollback.sh`, `snapshots/pf-mac3-3001.conf`, `snapshots/pf-mac4-3002.conf` |
 | Standby edge | None | `nginx` on Mac 4 (`X-Edge: mac4-standby-nginx`) proxying to Mac 3 `:3001` and local `127.0.0.1:3002` | `mac4-standby-edge.sh`, `snapshots/nginx-standby-mac4.conf` |
@@ -100,7 +100,8 @@ is also a test client, so isolation checks run from Mac 1 only.
 
 One failure was observed and is recorded. Backend A was stopped for a drill
 from 15:54:07. At 15:56:08 Mac 4's `pf` went from disabled to enabled, and one
-request to Backend B that was in flight was reset. With `max_fails=1`, that
+request to Backend B failed. The likely cause, not tested, is that a
+connection in flight had no `pf` state and was reset. With `max_fails=1`, that
 single error marked B down for `fail_timeout=10s`. A was already down, so
 nginx had no live upstream (`upstream=teamX_backends (502)` in Mac 2's log)
 and returned `502` until about 15:56:18. B itself stayed healthy: Mac 2 logged
@@ -114,10 +115,10 @@ and returned `502` until about 15:56:18. B itself stayed healthy: Mac 2 logged
 | Standby edge serves trusted HTTPS | `openssl verify` against `02_config/teamX-rootCA.crt` returns `OK`; `nginx` listens on `*:443` | `04_evidence/P2_E_edge_migration/P2E-01_mac4_standby_nginx_and_cert_verify.png` |
 | Standby proxies to both backends | Four requests without `-k` alternate A (`10.7.30.194:3001`) and B (`127.0.0.1:3002`), `x-edge: mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-01b_mac4_standby_commands_and_both_backends.png` |
 | Before the cutover (16:39:53) | Both resolvers answer `10.7.6.184`; Mac 1's requests go through `mac2-nginx` | `04_evidence/P2_E_edge_migration/P2E-02_mac1_before_cutover_mac2_edge.png` |
-| During the TTL window (16:40:00) | Mac 1's primary already answers `10.7.3.254`, but Mac 1's cached client still reaches `mac2-nginx`, while a fresh client using the new answer reaches `mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-03_mac1_during_ttl_old_vs_new_edge.png` |
-| Still cached at 16:40:25 | Mac 1's system resolver still returns `10.7.6.184`, and all six requests go through `mac2-nginx` | `04_evidence/P2_E_edge_migration/P2E-04a_mac1_1640_still_cached_mac2.png` |
+| During the TTL window (16:40:00) | Mac 1's primary already answers `10.7.3.254`, but Mac 1's cached client still reaches `mac2-nginx`, while a fresh client, pinned to the new answer with `--resolve` (no `-k`, so the certificate is still checked), reaches `mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-03_mac1_during_ttl_old_vs_new_edge.png` |
+| Still the old answer at 16:40:25 (cache or Mac 3, see below) | Mac 1's system resolver still returns `10.7.6.184`, and all six requests go through `mac2-nginx` | `04_evidence/P2_E_edge_migration/P2E-04a_mac1_1640_still_cached_mac2.png` |
 | After expiry (16:41:12) | Mac 1's resolver returns `10.7.3.254`; six requests alternate A and B through `mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-04_mac1_after_cutover_standby_AB.png` |
-| Rollback (16:46:13) | Both resolvers answer `10.7.6.184` again, traffic goes through `mac2-nginx`, and the stopped standby refuses connections | `04_evidence/P2_E_edge_migration/P2E-05_mac1_cutover_rollback_mac2.png` |
+| Rollback (16:46:13) | Both resolvers answer `10.7.6.184` again, traffic goes through `mac2-nginx`, and a request to the stopped standby fails with `Couldn't connect to server` | `04_evidence/P2_E_edge_migration/P2E-05_mac1_cutover_rollback_mac2.png` |
 
 The exact command behind each screenshot, and the known issues, are in
 `04_evidence/P2_E_edge_migration/P2E_notes.md`. Two are worth stating here. Mac 3's resolver switched
@@ -137,11 +138,12 @@ change only after the diagnosis was posted.
 
 | Drill | Injected | Diagnosis from Mac 4 | Restored | Evidence |
 | --- | --- | --- | --- | --- |
-| 1, on Mac 1 | 17:01:21: Mac 1's record for `app.teamX.test` pointed at Mac 3 (`10.7.30.194`), which runs no edge | Layer 1 (DNS) at 17:03:51: the two resolvers disagreed, HTTPS was refused, and the same request pinned to `10.7.6.184` returned `200` | 17:06:05, verified from Mac 4 at 17:07:07 | `04_evidence/P2_F_troubleshooting/P2F-01_drill1_diagnosis.png` |
+| 1, on Mac 1 | 17:01:21: Mac 1's record for `app.teamX.test` pointed at Mac 3 (`10.7.30.194`), which runs no edge | Layer 1 (DNS) at 17:03:51: the two resolvers disagreed, HTTPS failed to connect (Mac 3 refuses 443), and the same request pinned to `10.7.6.184` returned `200` | 17:06:05, verified from Mac 4 at 17:07:07 | `04_evidence/P2_F_troubleshooting/P2F-01_drill1_diagnosis.png` |
 | 2, on Mac 2 | 17:07:59: the edge's `ssl_certificate` and `ssl_certificate_key` pointed at a throwaway self-signed pair | Layer 3 (TLS) at 17:10:01: DNS and TCP passed, `Verify return code: 18`, issuer `drill2 self-signed`, and `-k` showed HTTP was fine underneath | 17:11:05, verified from Mac 4 at 17:12:15 | `04_evidence/P2_F_troubleshooting/P2F-02_drill2_diagnosis.png` |
 
 Both diagnoses named the correct layer and root cause. The serial in `P2F-02`
-matches the injected certificate exactly. Full write-up, with every check per
+(`54F7C238…280D`) matches the injected certificate, whose serial and
+fingerprint are posted on #17. Full write-up, with every check per
 layer: `04_evidence/P2_F_troubleshooting/drill_findings.md`.
 
 ## 3. Troubleshooting findings
@@ -170,6 +172,7 @@ was found by the same layer order:
 
 | Symptom | Layer | Cause | Fix |
 | --- | --- | --- | --- |
+| Mac 1's Phase 1 `dnsmasq` had not been running since 6 Oct | DNS | The Phase 1 drop-in `dnsmasq.d/teamX.conf` still listened on `10.7.10.22`, an address Mac 1 no longer had. Installing the Phase 2 file next to it would have given mixed answers | Moved it to `teamX.conf.phase1.bak` and installed the Phase 2 config (#7). `mac1-dns-phase2.sh` now refuses to install while another `teamX.test` config is active |
 | Phase 1 IPs no longer reachable | Network | DHCP gave all four Macs new addresses; Mac 3's private MAC also changed | Rechecked every row (`P2L-01` to `P2L-04`), then re-ran each script with the new IPs |
 | `ifconfig en0` shows `ether 02:00:00:00:00:00` | Network | Newer macOS hides the real MAC from apps | Read it from the DHCP packet (`ipconfig getpacket en0`, `chaddr`) |
 | Signing step fails with `unknown option -ext` | TLS | `/usr/bin/openssl` is LibreSSL | Put Homebrew `openssl@3` first on `PATH` before signing |
@@ -238,8 +241,9 @@ cutover itself is a DNS change, so it inherits Extension B's behaviour:
 clients holding the old answer keep reaching Mac 2 until their TTL expires,
 while new lookups reach Mac 4. Because the move is driven by TTL, it is a
 planned migration tool, not instant failover. Our cutover showed both sides
-of that at once: at 16:40:00 a fresh lookup already reached Mac 4 while Mac
-1's cached client still reached Mac 2, and the switch for Mac 1 completed
+of that at once: at 16:40:00 a client using a fresh answer (pinned with
+`--resolve`) already reached Mac 4 while Mac 1's cached client still reached
+Mac 2, and the switch for Mac 1 completed
 between 16:40:25 and 16:40:36.
 
 **Extension F, troubleshooting.** Diagnosing in a fixed order, DNS then TCP
