@@ -15,7 +15,7 @@ analysis without cloud hosting.
 | Mac 1 | Navodit | Private DNS and test client | `10.7.4.108` | UDP/TCP 53 | Managed private DNS |
 | Mac 2 | Sarvesh | HTTPS edge, reverse proxy, load balancer | `10.7.6.184` | TCP 80 and 443 | Application load balancer |
 | Mac 3 | Trishit | Backend A and backup DNS | `10.7.30.194` | TCP 3001; UDP/TCP 53 (backup DNS) | Application server A |
-| Mac 4 | Husain | Backend B and test client | `10.7.3.254` | TCP 3002; TCP 80 and 443 (standby edge) | Application server B |
+| Mac 4 | Husain | Backend B, standby HTTPS edge, and test client | `10.7.3.254` | TCP 3002; TCP 80 and 443 (standby edge) | Application server B |
 
 These addresses were recorded on 28 September 2026 and all four were
 rechecked on 23 November 2026. All four machines use
@@ -23,9 +23,11 @@ rechecked on 23 November 2026. All four machines use
 The [IP and service inventory](01_architecture/ip_table.md) includes interfaces,
 masks, MAC addresses, and collection commands.
 
-Both `app.teamX.test` and `api.teamX.test` resolve to Mac 2 with a configured
-60-second TTL. They use the same NGINX server block and backend pool. DNS
-returns the edge address; NGINX selects the backend for each proxied request.
+Both `app.teamX.test` and `api.teamX.test` resolve to Mac 2. Phase 1 used a
+60-second TTL; Phase 2 lowered it to 30 seconds and added Mac 3 as a backup
+resolver with the same records. They use the same NGINX server block and
+backend pool. DNS returns the edge address; NGINX selects the backend for each
+proxied request.
 
 For a fresh connection, the request follows these steps:
 
@@ -50,16 +52,18 @@ CN/
 ├── 02_config/
 ├── 03_backend_code/
 ├── 04_evidence/
-└── 06_phase1_checklists/
+├── 06_phase1_checklists/
+└── 07_phase2_report/
 ```
 
 | Location | Contents |
 | --- | --- |
 | [01_architecture](01_architecture/) | Architecture document, topology, IP/service table, and request-flow diagrams |
-| [02_config](02_config/) | dnsmasq and NGINX configuration, TLS setup notes, public root CA, and edge setup helper |
+| [02_config](02_config/) | dnsmasq and NGINX configuration, TLS setup notes, public root CA, and edge setup helper; Phase 2 scripts, snapshots, and runbook in [02_config/phase2](02_config/phase2/) |
 | [03_backend_code](03_backend_code/) | Shared Python backend and A/B launch instructions |
-| [04_evidence](04_evidence/) | Saved screenshots and original packet captures, grouped by rubric task |
-| [06_phase1_checklists](06_phase1_checklists/team_overview.md) | Team progress, role guides, remaining checks, demonstration order, and viva preparation |
+| [04_evidence](04_evidence/) | Saved screenshots and original packet captures, grouped by rubric task; the [evidence index](04_evidence/README.md) maps each demonstration step to its files |
+| [06_phase1_checklists](06_phase1_checklists/team_overview.md) | Phase 1 archive: team progress, role guides, demonstration order, and viva preparation |
+| [07_phase2_report](07_phase2_report/final_report.md) | Phase 2 final report |
 
 ## Requirements and shared setup
 
@@ -129,7 +133,9 @@ NGINX redirects HTTP on port 80 to HTTPS. It enables HTTP/2 for compatible
 clients and TLS 1.2/1.3; the upstream hop is plaintext HTTP/1.1. Round-robin
 selection distributes requests between A and B. Passive failure handling uses
 `max_fails=1`, `fail_timeout=10s`, a two-second connect timeout, and configured
-upstream retry conditions. DNS and the edge remain single points of failure.
+upstream retry conditions. Since Phase 2, DNS has a backup resolver on Mac 3,
+but Mac 2's edge is still a single point of failure: the standby edge on Mac 4
+takes over only through a planned DNS change.
 See [NGINX's balancing documentation](https://nginx.org/en/docs/http/load_balancing.html)
 for the selection and passive failure model.
 
@@ -212,5 +218,9 @@ in the capture. TLS 1.3 also encrypts the certificate message. A client capture
 does not necessarily include the separate edge-to-backend hop on a switched LAN.
 
 Phase 2 adds backup DNS, TTL changes, backend isolation, further failover,
-edge migration, troubleshooting, and a final report. Those extensions belong
-to the later review and are outside this Phase 1 documentation update.
+edge migration, and troubleshooting. The
+[Phase 2 final report](07_phase2_report/final_report.md) covers what changed,
+the test results, and what we learned. The
+[evidence index](04_evidence/README.md) lists the files for each extension,
+and the [troubleshooting runbook](02_config/phase2/troubleshooting_runbook.md)
+gives the 4-layer diagnosis order.
