@@ -27,7 +27,7 @@ unchanged as the Phase 1 record. Every Phase 2 change is made by a script in
 | LAN addresses | Recorded 28 Sep 2026 | All four Macs rechecked; every IPv4 changed by DHCP, and Mac 3's private Wi-Fi MAC changed | `01_architecture/ip_table.md`, `P2L-01` to `P2L-04` |
 | DNS | One resolver (Mac 1), `local-ttl=60` | Primary on Mac 1 and backup on Mac 3 with identical records, `local-ttl=30` | `snapshots/dnsmasq-primary-mac1.conf`, `snapshots/dnsmasq-backup-mac3.conf` |
 | Edge | Mac 2 `nginx` | Same config, refreshed to the Phase 2 backend IPs by `mac2-edge-phase2.sh`; the Phase 1 certificate is reused, not regenerated | `snapshots/nginx-edge-mac2.conf` |
-| Backend access | Ports 3001 and 3002 open to any host | `pf` anchor `teamX-backend` on Mac 3 and Mac 4: pass `lo0` and the edge IPs, `return-rst` for everyone else, with a scripted rollback | `pf-backend-isolate.sh`, `pf-backend-rollback.sh`, `snapshots/pf-mac3-3001.conf` |
+| Backend access | Ports 3001 and 3002 open to any host | `pf` anchor `teamX-backend` on Mac 3 and Mac 4: pass `lo0` and the edge IPs, `return-rst` for everyone else, with a scripted rollback | `pf-backend-isolate.sh`, `pf-backend-rollback.sh`, `snapshots/pf-mac3-3001.conf`, `snapshots/pf-mac4-3002.conf` |
 | Standby edge | None | `nginx` on Mac 4 (`X-Edge: mac4-standby-nginx`) proxying to Mac 3 `:3001` and local `127.0.0.1:3002` | `mac4-standby-edge.sh`, `snapshots/nginx-standby-mac4.conf` |
 | Standby TLS | None | Mac 4 generated its own key and CSR; Mac 2 signed it with `teamX-rootCA` (serial `41C5F4AD…5F20`, valid to 23 Nov 2027). Neither private key left its Mac | `standby-tls-notes.md`, `app.teamX.test-standby.{csr,crt}` |
 | Diagnosis | Ad hoc | One-page 4-layer runbook (DNS, TCP and `pf`, TLS, HTTP) | `troubleshooting_runbook.md` |
@@ -84,14 +84,17 @@ is also a test client, so isolation checks run from Mac 1 only.
 | Backend A stopped | Six requests, all `200` from Backend B | `P2D-02_mac1_backendA_stopped_all_B.png` (pending, PR #43) |
 | Backend A restored | A and B alternate again | `P2D-03_mac1_backendA_restored_AB.png` (pending, PR #43) |
 | Edge view of the same behaviour | Mac 2's access log: A/B at 15:40:23; the first drill request at 15:45:41 found A already down, so nginx retried B in the same request (`(502, 200)`) and the client got `200`; A back at 15:46:50 | `04_evidence/P2_D_ha_failover/P2D-04_mac2_edge_failover_access_log.png` |
-| No client errors during the drill | 180 HTTPS requests at one per second through Mac 2 while A was stopped and restarted: all 180 returned `200` (A 61, B 119) | Recorded in PR #44 (client log, not a repo file) |
+| No client errors during the drill | 180 HTTPS requests at one per second through Mac 2, 15:45:39 to 15:48:59, while A was stopped and restarted: all 180 returned `200` (A 61, B 119) | `04_evidence/P2_D_ha_failover/P2D-04b_mac2_drill_client_requests.log` |
 | Single point of failure | Mac 2's `nginx` (see Section 4, Extension D) | `04_evidence/P2_D_ha_failover/spof_analysis.md` |
 
-One failure was observed and is recorded: at 15:56:08 to 15:56:09 the edge
-returned `502` five times. Both backends were unavailable at once, because
-Backend A was stopped for a drill while Mac 4's `pf` anchor was being loaded.
-With no healthy upstream, nginx had nothing to fail over to. Details:
-`P2D_note_502_burst.md` (pending, PR #43).
+One failure was observed and is recorded. Backend A was stopped for a drill
+from 15:54:07. At 15:56:08 Mac 4's `pf` went from disabled to enabled, and one
+request to Backend B that was in flight was reset. With `max_fails=1`, that
+single error marked B down for `fail_timeout=10s`. A was already down, so
+nginx had no live upstream (`upstream=teamX_backends (502)` in Mac 2's log)
+and returned `502` until about 15:56:18. B itself stayed healthy: Mac 2 logged
+`200`s from B from 15:56:19. Details: `P2D_note_502_burst.md` (pending,
+PR #43).
 
 ### Extension E: controlled edge migration
 
@@ -126,7 +129,7 @@ was found by the same layer order:
 | Signing step fails with `unknown option -ext` | TLS | `/usr/bin/openssl` is LibreSSL | Put Homebrew `openssl@3` first on `PATH` before signing |
 | HTTPS through Mac 2 returns `502` with `x-upstream-addr` listing both backends | HTTP, caused at TCP | Neither backend was running; `nc -vz` showed `Connection refused` while `ping` worked | Started both backends; requests alternated A and B |
 | `nginx -s reload` fails after a restart | HTTP | `nginx` was not running, so there was nothing to reload | Start it with `sudo nginx` after `sudo nginx -t` |
-| Five `502`s at 15:56 | HTTP, caused at TCP and `pf` | Two planned changes overlapped: a backend stopped while the other's `pf` anchor loaded | Change one thing at a time; check both upstreams before a drill |
+| `502`s from 15:56:08 to about 15:56:18 | HTTP, caused at TCP and `pf` | Backend A was stopped for a drill; enabling `pf` on Mac 4 reset one in-flight request to B, and `max_fails=1` then took the healthy B out for 10 s | Change one thing at a time; check both upstreams before a drill |
 
 One diagnosis was wrong and is worth recording. We concluded that `curl -I`
 (HEAD) gets `501` from the backends, based on a test against a stand-in
@@ -174,8 +177,11 @@ Mac 2's `nginx`. Both resolvers answer with its address, so if it stops,
 every request fails even with both backends healthy. Removing it needs a
 second active edge plus a way to move traffic automatically: a floating
 virtual IP (VRRP), a layer 4 balancer in front, or DNS failover driven by
-health checks. The burst of `502`s also showed the limit of passive checks:
-when both upstreams are down, there is nothing to fail over to.
+health checks. The burst of `502`s showed the cost of passive checks set this
+strictly: with `max_fails=1`, one reset connection took a healthy Backend B
+out of rotation for the full 10 s `fail_timeout`, and with A stopped there was
+nothing left to serve. A higher `max_fails`, a shorter `fail_timeout`, or
+active health checks would have kept B in service.
 
 **Extension E, edge migration.** A standby edge has to present a certificate
 clients already trust, so Mac 4 sent a CSR and Mac 2 signed it with the
