@@ -370,9 +370,11 @@ tries it again. Once A answers, round-robin resumes without any manual step.
 
 - Observed on 23 Nov 2026: with Backend A stopped, six requests from Mac 1
   all returned `200` from B (P2D-02). A/B alternation resumed after A
-  restarted (P2D-03). Mac 2's access log shows the retry and recovery
-  (P2D-04). A short `502` burst during the drill, caused by Mac 4's pf being
-  enabled mid-request, is explained in
+  restarted (P2D-03). An earlier stop of A, at about 15:45 with Mac 2 as the
+  client, shows the same retry and recovery in Mac 2's access log (P2D-04)
+  and in the 180-request client log (P2D-04b). A short `502` burst during the
+  Mac 1 drill, likely caused by Mac 4's pf being enabled mid-request, is
+  explained in
   [P2D_note_502_burst.md](../04_evidence/P2_D_ha_failover/P2D_note_502_burst.md).
 
 ### 10.8 Extension E: controlled edge migration
@@ -431,6 +433,6 @@ managed load balancer covers this tier. The full comparison is in
 | A: backup DNS | [P2_A_backup_dns](../04_evidence/P2_A_backup_dns/) | P2A-01 to P2A-05 |
 | B: TTL | [P2_B_dns_ttl](../04_evidence/P2_B_dns_ttl/) | P2B-01 to P2B-03 |
 | C: isolation | [P2_C_service_isolation](../04_evidence/P2_C_service_isolation/) | P2C-01 to P2C-06 |
-| D: HA failover | [P2_D_ha_failover](../04_evidence/P2_D_ha_failover/) | P2D-01 to P2D-04, `spof_analysis.md` |
-| E: edge migration | [P2_E_edge_migration](../04_evidence/P2_E_edge_migration/) | P2E-01 to P2E-05, `P2E_notes.md` |
-| F: troubleshooting | [troubleshooting_runbook.md](../02_config/phase2/troubleshooting_runbook.md) | Live during the review |
+| D: HA failover | [P2_D_ha_failover](../04_evidence/P2_D_ha_failover/) | P2D-01 to P2D-04, `P2D-04b` client log, `spof_analysis.md`, `P2D_note_502_burst.md` |
+| E: edge migration | [P2_E_edge_migration](../04_evidence/P2_E_edge_migration/) | P2E-01, P2E-01b, P2E-02 to P2E-05, P2E-04a, `P2E_notes.md` |
+| F: troubleshooting | [P2_F_troubleshooting](../04_evidence/P2_F_troubleshooting/) | P2F-01, P2F-02, `drill_findings.md`; method in [troubleshooting_runbook.md](../02_config/phase2/troubleshooting_runbook.md); the faculty-injected fault is live during the review |
