@@ -5,7 +5,7 @@
 | Mac 1 | Navodit | DNS + client       | `en0`     | `10.7.10.22`  | `/19 (255.255.224.0)` | `10.7.0.1` | `10:9f:41:bc:ff:5a` | `53 UDP/TCP`    |
 | Mac 2 | Sarvesh | Edge / LB / TLS    | `en0`     | `10.7.22.227` | `/19 (255.255.224.0)` | `10.7.0.1` | `3a:33:4b:89:be:dc` | `80, 443 TCP`   |
 | Mac 3 | Trishit | Backend A          | `en0`     | `10.7.18.190`  | `/19 (255.255.224.0)` | `10.7.0.1` | `be:4f:1d:91:b1:8b` | `3001 TCP`      |
-| Mac 4 | Husain  | Backend B + client | `en0`     | `10.7.24.166` | `/19 (255.255.224.0)` | `10.7.0.1` | `6e:5a:77:e4:01:0c` | `3002 TCP`      |
+| Mac 4 | Husain  | Backend B + client | `en0`     | `10.7.3.254`  | `/19 (255.255.224.0)` | `10.7.0.1` | `6e:5a:77:e4:01:0c` | `3002, 80, 443 TCP` |
 
 Values recorded on the Rishihood Learners network on 28 September 2026.
 Mac 2's IPv4, `/19` prefix (`255.255.224.0`), gateway `10.7.0.1` and MAC come
@@ -13,6 +13,10 @@ from its own `ifconfig en0` and `route -n get default`. The other three MAC
 addresses are the active Wi-Fi addresses seen in Mac 2's ARP table
 (`arp -n <IP>`); each owner should confirm theirs with `ifconfig en0`.
 Recheck all values if any Mac rejoins or changes network.
+
+Phase 2: Mac 4's row was rechecked on 23 November 2026 from its own
+`ifconfig en0` and `route -n get default`. Its IPv4 changed from `10.7.24.166`;
+the mask, gateway and MAC are unchanged. Ports 80 and 443 are the standby edge.
 
 On each Mac, capture its row data with:
 
