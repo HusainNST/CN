@@ -1,9 +1,9 @@
 # teamX Phase 2 Final Report: Harden, Recover, Troubleshoot
 
-**Status: draft.** Results below are from the live network on 23 November 2026.
-Items marked *pending* have not been observed yet, or their evidence is still
-in an open pull request. Every evidence path is listed with where it lives
-today.
+All results below were observed on the live network on 23 November 2026.
+Every evidence path named in this report exists in the repository. The updated
+architecture document and topology are in `01_architecture/architecture_doc.md`
+and `01_architecture/topology.png`.
 
 | Mac | Role in Phase 2 | IPv4 (`/19`, gateway `10.7.0.1`) |
 | --- | --- | --- |
@@ -130,8 +130,19 @@ to Mac 3, which still had the old record. Mac 4's standby access log matches
 
 ### Extension F: troubleshooting
 
-The runbook is in place (`02_config/phase2/troubleshooting_runbook.md`). The
-two mock fault drills are *pending (#17)*.
+Two blind drills. Each fault was injected by one Mac's owner without saying
+what it was, and Mac 4 diagnosed it as a client with
+`02_config/phase2/troubleshooting_runbook.md`. The injector confirmed the
+change only after the diagnosis was posted.
+
+| Drill | Injected | Diagnosis from Mac 4 | Restored | Evidence |
+| --- | --- | --- | --- | --- |
+| 1, on Mac 1 | 17:01:21: Mac 1's record for `app.teamX.test` pointed at Mac 3 (`10.7.30.194`), which runs no edge | Layer 1 (DNS) at 17:03:51: the two resolvers disagreed, HTTPS was refused, and the same request pinned to `10.7.6.184` returned `200` | 17:06:05, verified from Mac 4 at 17:07:07 | `04_evidence/P2_F_troubleshooting/P2F-01_drill1_diagnosis.png` |
+| 2, on Mac 2 | 17:07:59: the edge's `ssl_certificate` and `ssl_certificate_key` pointed at a throwaway self-signed pair | Layer 3 (TLS) at 17:10:01: DNS and TCP passed, `Verify return code: 18`, issuer `drill2 self-signed`, and `-k` showed HTTP was fine underneath | 17:11:05, verified from Mac 4 at 17:12:15 | `04_evidence/P2_F_troubleshooting/P2F-02_drill2_diagnosis.png` |
+
+Both diagnoses named the correct layer and root cause. The serial in `P2F-02`
+matches the injected certificate exactly. Full write-up, with every check per
+layer: `04_evidence/P2_F_troubleshooting/drill_findings.md`.
 
 ## 3. Troubleshooting findings
 
@@ -141,7 +152,18 @@ two mock fault drills are *pending (#17)*.
 HTTP (`curl` headers, `X-Edge`, `X-Upstream-Addr`, the edge access log).
 After a fix, re-run every check from that layer up.
 
-**Mock drills (#17).** *Pending.*
+**Mock drills.** Both stopped at the first failing layer and named it
+correctly (DNS in drill 1, TLS in drill 2). Three findings from them:
+
+- A wrong answer from the primary resolver does not trigger DNS failover. The
+  client only falls back to Mac 3 when Mac 1 does not answer, so in drill 1 the
+  correct backup did not help.
+- `nginx -s reload` is graceful. A check fired in the same second as the drill
+  2 restore still saw the self-signed certificate from an old worker; checks a
+  few seconds later were clean.
+- On Mac 4, Homebrew's `curl` and `openssl` could not reach LAN addresses from
+  Terminal while `/usr/bin` versions could. The cause is unconfirmed (likely
+  macOS's Local Network permission), so the drills used the `/usr/bin` tools.
 
 **Faults met while building Phase 2.** These were real, not injected, and each
 was found by the same layer order:
@@ -225,10 +247,14 @@ then TLS then HTTP, stops guessing: the first failing check names the layer.
 Our own faults showed why the order matters. A `502` is reported at the HTTP
 layer, but its cause was at TCP (nothing listening, or a `pf` change). A
 failed signing step looked like a TLS problem, but the cause was the wrong
-`openssl` binary. The runbook turns this into a repeatable checklist.
-(Mock drills pending, #17.)
+`openssl` binary. The two blind drills confirmed the method: in drill 1 DNS
+failed while the edge, pinned by IP, still worked, and in drill 2 DNS and TCP
+passed while TLS failed with `Verify return code: 18`. Each time the first
+failing check named the layer and pointed at the root cause. Drill 1 also
+showed a limit of redundancy: a backup resolver only helps when the primary
+stops answering, not when it answers wrongly.
 
-## Pending before this report is final
+## Evidence checklist
 
 - [x] Ext A failover screenshots merged (PR #45)
 - [x] Ext B TTL and flush captured (#10, PR #45)
@@ -236,4 +262,4 @@ failed signing step looked like a TLS problem, but the cause was the wrong
 - [x] Ext C and D Mac 1 evidence merged (PR #43)
 - [x] Ext C and D Mac 2 evidence and SPOF analysis merged (PR #44)
 - [x] Ext E DNS cutover (#16, PR #47)
-- [ ] Ext F mock drills (#17) and architecture update (#18)
+- [x] Ext F mock drills (#17, PR #49) and architecture update (#18, PR #48)
