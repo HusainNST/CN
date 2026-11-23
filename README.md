@@ -24,7 +24,7 @@ The [IP and service inventory](01_architecture/ip_table.md) includes interfaces,
 masks, MAC addresses, and collection commands.
 
 Both `app.teamX.test` and `api.teamX.test` resolve to Mac 2 with a configured
-60-second TTL. They use the same NGINX server block and backend pool. DNS
+30-second TTL (60 seconds in Phase 1). They use the same NGINX server block and backend pool. DNS
 returns the edge address; NGINX selects the backend for each proxied request.
 
 For a fresh connection, the request follows these steps:
@@ -50,16 +50,18 @@ CN/
 ├── 02_config/
 ├── 03_backend_code/
 ├── 04_evidence/
-└── 06_phase1_checklists/
+├── 06_phase1_checklists/
+└── 07_phase2_report/
 ```
 
 | Location | Contents |
 | --- | --- |
 | [01_architecture](01_architecture/) | Architecture document, topology, IP/service table, and request-flow diagrams |
-| [02_config](02_config/) | dnsmasq and NGINX configuration, TLS setup notes, public root CA, and edge setup helper |
+| [02_config](02_config/) | dnsmasq and NGINX configuration, TLS setup notes, public root CA, and edge setup helper; Phase 2 scripts, tests, and live config snapshots in [02_config/phase2](02_config/phase2/) |
 | [03_backend_code](03_backend_code/) | Shared Python backend and A/B launch instructions |
 | [04_evidence](04_evidence/) | Saved screenshots and original packet captures, grouped by rubric task |
 | [06_phase1_checklists](06_phase1_checklists/team_overview.md) | Team progress, role guides, remaining checks, demonstration order, and viva preparation |
+| [07_phase2_report](07_phase2_report/final_report.md) | Phase 2 final report: changes, test results, troubleshooting findings, and learning summary |
 
 ## Requirements and shared setup
 
@@ -211,6 +213,23 @@ data. HTTP headers are visible in client output; HTTPS payloads are encrypted
 in the capture. TLS 1.3 also encrypts the certificate message. A client capture
 does not necessarily include the separate edge-to-backend hop on a switched LAN.
 
-Phase 2 adds backup DNS, TTL changes, backend isolation, further failover,
-edge migration, troubleshooting, and a final report. Those extensions belong
-to the later review and are outside this Phase 1 documentation update.
+### Phase 2 (Review 2)
+
+Review 2 awards 40 team marks plus 10 individual viva marks per student. The
+[final report](07_phase2_report/final_report.md) lists every test with its
+result and evidence path; the
+[architecture document](01_architecture/architecture_doc.md#10-phase-2-architecture)
+describes the Phase 2 design.
+
+| Review 2 area | Marks | Deliverable and evidence location |
+| --- | ---: | --- |
+| Resilience and HA failover (Ext A, B, D) | 15 | [Report: Ext A, B, D results](07_phase2_report/final_report.md#2-resilience-tests-and-results), [backup DNS](04_evidence/P2_A_backup_dns/), [TTL and flush](04_evidence/P2_B_dns_ttl/), [HA failover and SPOF analysis](04_evidence/P2_D_ha_failover/), [DNS snapshots](02_config/phase2/snapshots/) |
+| Service isolation and edge migration (Ext C, E) | 10 | [pf isolation and rollback](04_evidence/P2_C_service_isolation/), [edge cutover and notes](04_evidence/P2_E_edge_migration/), [pf and standby edge snapshots](02_config/phase2/snapshots/), [standby TLS notes](02_config/phase2/standby-tls-notes.md) |
+| Troubleshooting challenge (Ext F) | 10 | [4-layer runbook](02_config/phase2/troubleshooting_runbook.md), [mock drills](04_evidence/P2_F_troubleshooting/drill_findings.md) |
+| Final report | 5 | [07_phase2_report/final_report.md](07_phase2_report/final_report.md) |
+| Individual Phase 2 viva | 10 | [Architecture document, section 10](01_architecture/architecture_doc.md#10-phase-2-architecture) and the report's learning summary |
+
+The LAN addresses were rechecked for Phase 2 in
+[P2_lan_recheck](04_evidence/P2_lan_recheck/). Phase 1 configs in `02_config/`
+are kept unchanged; each Phase 2 change is made by a script in
+`02_config/phase2/` and its live config is committed as a snapshot.
