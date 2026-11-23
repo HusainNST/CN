@@ -66,9 +66,7 @@ Send `app.teamX.test-standby.crt` back to Mac 4. Mac 4 places it at
 `02_config/phase2/mac4-standby-edge.sh <MAC3_IP>`, which checks the chain
 against `02_config/teamX-rootCA.crt` before installing the config.
 
-## Status
+## Verification output
 
-Pending on the real Macs: needs Mac 4's CSR. The same flow was exercised in
-the Docker emulation with a throwaway lab CA (see
-[05_docker_lab](../../05_docker_lab/README.md)); that does not prove the real
-certificate exists.
+Pending. This section gets the real output of the two step 3 commands once
+Mac 2 signs Mac 4's CSR. Until then, no standby certificate exists.
