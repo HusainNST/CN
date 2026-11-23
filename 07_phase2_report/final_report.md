@@ -47,17 +47,28 @@ input validation and rendered config.
 | Test | Result | Evidence |
 | --- | --- | --- |
 | Backup `dnsmasq` on Mac 3 answers with the same record | Listens on `10.7.30.194:53`; `app` and `api.teamX.test` return `10.7.6.184`, TTL 30 | `04_evidence/P2_A_backup_dns/P2A-01_mac3_backup_dnsmasq_running.png` |
-| Client with both resolvers, primary up | Mac 4 (resolvers Mac 1 then Mac 3) gets its answer from `10.7.4.108`, HTTPS `200` | `P2A-03_mac4_dual_dns_primary_up.png` (pending, PR #45) |
-| Primary stopped | `dig` reports `SERVER: 10.7.30.194` with the same record, and HTTPS still returns `200`. `dig` asks the resolver directly, so this answer came from the backup, not a cache | `P2A-04_mac4_backup_failover_primary_stopped.png` (pending, PR #45) |
+| Client with both resolvers, primary up | Mac 4 (resolvers Mac 1 then Mac 3) gets its answer from `10.7.4.108`, HTTPS `200` | `04_evidence/P2_A_backup_dns/P2A-03_mac4_dual_dns_primary_up.png` |
+| Primary stopped | `dig` reports `SERVER: 10.7.30.194` with the same record, and HTTPS still returns `200`. `dig` asks the resolver directly, so this answer came from the backup, not a cache | `04_evidence/P2_A_backup_dns/P2A-04_mac4_backup_failover_primary_stopped.png` |
 | Backup logged the failover lookups | Mac 3's query log shows `app.teamX.test` from `10.7.3.254` answered with `10.7.6.184` | `04_evidence/P2_A_backup_dns/P2A-02_mac3_backup_query_log.png` |
-| Primary restored | Answers from `10.7.4.108` again | `P2A-05_mac4_primary_restored.png` (pending, PR #45) |
+| Primary restored | Answers from `10.7.4.108` again | `04_evidence/P2_A_backup_dns/P2A-05_mac4_primary_restored.png` |
 
 ### Extension B: TTL and controlled record change
 
-*Pending (#10).* The `local-ttl=30` setting is in place on both resolvers
-(`dig` shows TTL 30 in `P2A-01`). The record change, the cached answer until
-expiry, and the manual flush (`P2B-01` to `P2B-03`) have not been captured
-yet.
+Mac 4 printed two answers side by side: `dig` (asks the resolver directly)
+and `dscacheutil -q host` (what macOS's own cache returns). The record for
+`app.teamX.test` was switched from Mac 2 (`10.7.6.184`) to Mac 4's standby
+edge (`10.7.3.254`) and back, on both resolvers.
+
+| Test | Result | Evidence |
+| --- | --- | --- |
+| Initial TTL | At 16:27:55 `dig` returns `10.7.6.184` with TTL `30`, and the cache holds the same answer | `04_evidence/P2_B_dns_ttl/P2B-01_mac4_ttl_initial_30s.png` |
+| Cached answer until expiry | `dig` returns the new `10.7.3.254` from 16:40:01, while the cache keeps serving the old `10.7.6.184` through 16:40:13 and switches on its own at 16:40:17, inside the 30 s TTL | `04_evidence/P2_B_dns_ttl/P2B-02_mac4_ttl_cached_then_expired.png` |
+| Manual flush | At 16:45:40 `dig` returns `10.7.6.184` from `10.7.4.108` while the cache, filled about 7 s earlier, still holds `10.7.3.254`. After `sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder` the cache returns `10.7.6.184` immediately | `04_evidence/P2_B_dns_ttl/P2B-03_mac4_ttl_manual_flush_immediate.png` |
+| Restore | Both resolvers answer `app.teamX.test 30 IN A 10.7.6.184` again (checked from Mac 4 at 16:46:12 and from Mac 2 at 16:49:04) | Observation, #10 |
+
+Mac 3's resolver switched at 16:42:14, about 2 minutes after Mac 1's. That
+does not affect `P2B-02`: Mac 4 asks Mac 1 first, and Mac 1 was answering
+throughout.
 
 ### Extension C: service isolation
 
@@ -154,9 +165,11 @@ where to look.
 any resolver or client may reuse an answer. A 30 second TTL means a record
 change takes up to 30 seconds to reach every client, and a client that cached
 the old answer keeps using it until then; flushing the cache skips the wait
-on that one client. Production teams lower the TTL well before a planned
-migration, so the cutover converges quickly, then raise it again afterwards
-to cut query load. (Live observation pending, #10.)
+on that one client. We saw exactly this on Mac 4: the resolver had the new
+address at 16:40:01, but the client's cache kept serving the old one until
+16:40:17, and a manual flush later replaced a 7 second old entry at once.
+Production teams lower the TTL well before a planned migration, so the cutover
+converges quickly, then raise it again afterwards to cut query load.
 
 **Extension C, service isolation.** Before Phase 2 anyone on the LAN could
 skip the edge and talk to a backend directly, bypassing TLS and load
@@ -201,8 +214,8 @@ failed signing step looked like a TLS problem, but the cause was the wrong
 
 ## Pending before this report is final
 
-- [ ] Ext A failover screenshots merged (PR #45)
-- [ ] Ext B TTL and flush captured (#10)
+- [x] Ext A failover screenshots merged (PR #45)
+- [x] Ext B TTL and flush captured (#10, PR #45)
 - [x] Ext C Mac 4 anchor and rollback (PR #42, merged)
 - [x] Ext C and D Mac 1 evidence merged (PR #43)
 - [x] Ext C and D Mac 2 evidence and SPOF analysis merged (PR #44)
