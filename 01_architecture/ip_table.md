@@ -20,8 +20,7 @@ the backup DNS.
 Mac 2's IPv4, `/19` prefix (`255.255.224.0`), gateway `10.7.0.1` and MAC come
 from its own `networksetup -getinfo Wi-Fi`, `route -n get default` and
 `ipconfig getpacket en0` (`chaddr`), because newer macOS hides the MAC in
-`ifconfig en0`. The Mac 4 MAC address is the active Wi-Fi address seen in
-Mac 2's ARP table (`arp -n <IP>`).
+`ifconfig en0`.
 Recheck all values if any Mac rejoins or changes network.
 
 On each Mac, capture its row data with:
