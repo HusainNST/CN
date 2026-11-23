@@ -113,7 +113,20 @@ and returned `502` until about 15:56:18. B itself stayed healthy: Mac 2 logged
 | --- | --- | --- |
 | Standby edge serves trusted HTTPS | `openssl verify` against `02_config/teamX-rootCA.crt` returns `OK`; `nginx` listens on `*:443` | `04_evidence/P2_E_edge_migration/P2E-01_mac4_standby_nginx_and_cert_verify.png` |
 | Standby proxies to both backends | Four requests without `-k` alternate A (`10.7.30.194:3001`) and B (`127.0.0.1:3002`), `x-edge: mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-01b_mac4_standby_commands_and_both_backends.png` |
-| DNS cutover to Mac 4 and TTL transition | *Pending (#16)* | |
+| Before the cutover (16:39:53) | Both resolvers answer `10.7.6.184`; Mac 1's requests go through `mac2-nginx` | `04_evidence/P2_E_edge_migration/P2E-02_mac1_before_cutover_mac2_edge.png` |
+| During the TTL window (16:40:00) | Mac 1's primary already answers `10.7.3.254`, but Mac 1's cached client still reaches `mac2-nginx`, while a fresh client using the new answer reaches `mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-03_mac1_during_ttl_old_vs_new_edge.png` |
+| Still cached at 16:40:25 | Mac 1's system resolver still returns `10.7.6.184`, and all six requests go through `mac2-nginx` | `04_evidence/P2_E_edge_migration/P2E-04a_mac1_1640_still_cached_mac2.png` |
+| After expiry (16:41:12) | Mac 1's resolver returns `10.7.3.254`; six requests alternate A and B through `mac4-standby-nginx` | `04_evidence/P2_E_edge_migration/P2E-04_mac1_after_cutover_standby_AB.png` |
+| Rollback (16:46:13) | Both resolvers answer `10.7.6.184` again, traffic goes through `mac2-nginx`, and the stopped standby refuses connections | `04_evidence/P2_E_edge_migration/P2E-05_mac1_cutover_rollback_mac2.png` |
+
+The exact command behind each screenshot, and the known issues, are in
+`04_evidence/P2_E_edge_migration/P2E_notes.md`. Two are worth stating here. Mac 3's resolver switched
+late (16:42:14), so `P2E-03`'s heading "both DNS servers already answer Mac 4"
+is wrong for Mac 3; the cached versus fresh comparison comes from Mac 1's
+primary, which switched at 16:39:59. And `P2E-04a` cannot say whether the old
+answer at 16:40:25 came from Mac 1's cache or from a lookup that fell through
+to Mac 3, which still had the old record. Mac 4's standby access log matches
+`P2E-03` and `P2E-04` request for request (checked on #47).
 
 ### Extension F: troubleshooting
 
@@ -202,7 +215,10 @@ existing team CA. No private key moved, and no client needed a new CA. The
 cutover itself is a DNS change, so it inherits Extension B's behaviour:
 clients holding the old answer keep reaching Mac 2 until their TTL expires,
 while new lookups reach Mac 4. Because the move is driven by TTL, it is a
-planned migration tool, not instant failover. (Live cutover pending, #16.)
+planned migration tool, not instant failover. Our cutover showed both sides
+of that at once: at 16:40:00 a fresh lookup already reached Mac 4 while Mac
+1's cached client still reached Mac 2, and the switch for Mac 1 completed
+between 16:40:25 and 16:40:36.
 
 **Extension F, troubleshooting.** Diagnosing in a fixed order, DNS then TCP
 then TLS then HTTP, stops guessing: the first failing check names the layer.
@@ -219,5 +235,5 @@ failed signing step looked like a TLS problem, but the cause was the wrong
 - [x] Ext C Mac 4 anchor and rollback (PR #42, merged)
 - [x] Ext C and D Mac 1 evidence merged (PR #43)
 - [x] Ext C and D Mac 2 evidence and SPOF analysis merged (PR #44)
-- [ ] Ext E DNS cutover (#16)
+- [x] Ext E DNS cutover (#16, PR #47)
 - [ ] Ext F mock drills (#17) and architecture update (#18)
