@@ -86,6 +86,14 @@ else
   pass "No openssl calls"
 fi
 
+echo "-- printed status check uses GET (server.py answers HEAD with 501)"
+if grep -Fq 'curl -sI' "$MAC2_EDGE"; then
+  fail "Status check does not send HEAD" "script prints curl -sI"
+else
+  pass "Status check does not send HEAD"
+fi
+assert_contains "$MAC2_EDGE" "curl -s -D - -o /dev/null https://app.teamX.test/api/status" "Status check sends GET and prints headers"
+
 echo "-- Phase 1 files untouched"
 if [ "$PHASE1_SUMS_BEFORE" = "$(shasum "$REPO_ROOT/02_config/nginx-teamX.conf" "$REPO_ROOT/02_config/mac2-edge-setup.sh")" ]; then
   pass "nginx-teamX.conf and mac2-edge-setup.sh unchanged"
