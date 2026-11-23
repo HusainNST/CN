@@ -24,17 +24,29 @@ From Mac 2's `teamX_access.log`, as quoted by Mac 2 in the #43 review:
 
 ## Cause
 
-Both backends were unavailable to the edge at the same moment, so nginx had
-no healthy upstream to fail over to:
+At 15:56:08 Mac 4's pf went from disabled to enabled (`P2C-02` in #42). A
+request to `:3002` that was in flight at that moment was reset, because its
+connection had no pf state (likely, not tested). With `max_fails=1`, that
+single failure marked B down for `fail_timeout=10s`. A was already stopped,
+so nginx had no live upstream and returned 502 until about 15:56:18.
+
+How that fits the log and Mac 1's polling:
 
 - Backend A (Mac 3) was stopped on purpose for the drill from 15:54:07 to
   15:57:52 (confirmed by Mac 3 on #43).
-- Mac 4's pf anchor for Backend B (`:3002`, #12) was being loaded at 15:56
-  (`P2C-02` in #42).
+- The edge's upstreams use `max_fails=1 fail_timeout=10s` and no `keepalive`
+  (`02_config/phase2/snapshots/nginx-edge-mac2.conf`), so nginx opens a new
+  backend connection per request and one failure takes a backend out for 10 s.
+- The first 15:56:08 line names `10.7.3.254:3002`: that is the reset request.
+  The later lines show `upstream=teamX_backends (502)` with no address, which
+  is nginx's "no live upstreams". It did not try a backend.
+- The 502s ended when `fail_timeout` ran out at about 15:56:18, matching Mac 1's
+  200s from 15:56:19. Mac 2's last logged 502 is at 15:56:09 only because Mac 1
+  sent nothing between 15:56:09 and 15:56:19.
 
-This was two planned changes overlapping, not an HA failure. Once Mac 4's pf
-rule was in place and allowed Mac 2, Backend B served every request and the
-502s stopped (last 502 in Mac 2's log at 15:56:09).
+The burst length came from `fail_timeout`, not from how long pf took to load.
+This was two planned changes overlapping, not an HA failure. Cause analysis
+by Mac 4 in the #43 review.
 
 ## Effect on the evidence
 
