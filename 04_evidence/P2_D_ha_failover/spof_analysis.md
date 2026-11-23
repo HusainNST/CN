@@ -48,10 +48,11 @@ one LAN. In the cloud, a managed load balancer covers the edge tier.
 
 ## Evidence
 
-Pending, from the live lab session (P2-13, P2-14):
-
-- `P2D-01_mac1_both_backends_up.png`, `P2D-02_mac1_backendA_stopped_all_B.png`
-  and `P2D-03_mac1_backendA_restored_AB.png`: client side failover and
-  recovery from Mac 1 (P2-13).
-- `P2D-04_mac2_edge_failover_access_log.png`: Mac 2's `teamX_access.log`
-  during Backend A stop and recovery (P2-14).
+- Pending: `P2D-01_mac1_both_backends_up.png`,
+  `P2D-02_mac1_backendA_stopped_all_B.png` and
+  `P2D-03_mac1_backendA_restored_AB.png`: client side failover and recovery
+  from Mac 1 (P2-13).
+- `P2D-04_mac2_edge_failover_access_log.png`: captured 23 Nov 2026. Mac 2's
+  `teamX_access.log` shows A/B alternation at 15:40:23, Backend A stopped from
+  15:45:41 (nginx gets 502 from A, retries B, client gets 200), B only until
+  15:46:48, and A/B alternation again from 15:46:50.
