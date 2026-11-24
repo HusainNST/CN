@@ -94,8 +94,8 @@ is also a test client, so isolation checks run from Mac 1 only.
 | Both backends up | Six requests from Mac 1 alternate A, B, A, B, A, B | `04_evidence/P2_D_ha_failover/P2D-01_mac1_both_backends_up.png` |
 | Backend A stopped | Six requests, all `200` from Backend B | `04_evidence/P2_D_ha_failover/P2D-02_mac1_backendA_stopped_all_B.png` |
 | Backend A restored | A and B alternate again | `04_evidence/P2_D_ha_failover/P2D-03_mac1_backendA_restored_AB.png` |
-| Edge view of the same behaviour | Mac 2's access log: A/B at 15:40:23; the first drill request at 15:45:41 found A already down, so nginx retried B in the same request (`(502, 200)`) and the client got `200`; A back at 15:46:50 | `04_evidence/P2_D_ha_failover/P2D-04_mac2_edge_failover_access_log.png` |
-| No client errors during the drill | 180 HTTPS requests at one per second through Mac 2, 15:45:39 to 15:48:59, while A was stopped and restarted: all 180 returned `200` (A 61, B 119) | `04_evidence/P2_D_ha_failover/P2D-04b_mac2_drill_client_requests.log` |
+| Edge view of an earlier stop of A (about 15:45, client Mac 2) | Mac 2's access log: A/B at 15:40:23; the first drill request at 15:45:41 found A already down, so nginx retried B in the same request (`(502, 200)`) and the client got `200`; A back at 15:46:50. Same mechanism as the rows above, but a separate stop from the one in `P2D-01` to `P2D-03` | `04_evidence/P2_D_ha_failover/P2D-04_mac2_edge_failover_access_log.png` |
+| No client errors during that earlier stop | 180 HTTPS requests at about one per second through Mac 2, 15:45:39 to 15:48:59, while A was stopped and restarted: all 180 returned `200` (A 61, B 119) | `04_evidence/P2_D_ha_failover/P2D-04b_mac2_drill_client_requests.log` |
 | Single point of failure | Mac 2's `nginx` (see Section 4, Extension D) | `04_evidence/P2_D_ha_failover/spof_analysis.md` |
 
 One failure was observed and is recorded. Backend A was stopped for a drill
