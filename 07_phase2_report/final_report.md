@@ -99,8 +99,11 @@ is also a test client, so isolation checks run from Mac 1 only.
 | Single point of failure | Mac 2's `nginx` (see Section 4, Extension D) | `04_evidence/P2_D_ha_failover/spof_analysis.md` |
 
 One failure was observed and is recorded. Backend A was stopped for a drill
-from 15:54:07. At 15:56:08 Mac 4's `pf` went from disabled to enabled, and one
-request to Backend B failed. The likely cause, not tested, is that a
+from 15:54:07. At about 15:56:08 Mac 4's `pf` went from disabled to enabled,
+and one request to Backend B failed. (The isolate script's saved pf state file is
+stamped 15:56:08 and records pf as still disabled then, while `P2C-02`'s
+"Enabled for 00:00:23" at 15:56:28 points to about 15:56:05. The few seconds
+between them are not explained.) The likely cause, not tested, is that a
 connection in flight had no `pf` state and was reset. With `max_fails=1`, that
 single error marked B down for `fail_timeout=10s`. A was already down, so
 nginx had no live upstream (`upstream=teamX_backends (502)` in Mac 2's log)

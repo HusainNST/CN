@@ -24,7 +24,11 @@ From Mac 2's `teamX_access.log`, as quoted by Mac 2 in the #43 review:
 
 ## Cause
 
-At 15:56:08 Mac 4's pf went from disabled to enabled (`P2C-02` in #42). A
+At about 15:56:08 Mac 4's pf went from disabled to enabled (`P2C-02` in #42).
+The isolate script's saved pf state file on Mac 4 is stamped 15:56:08 and
+records pf as still disabled at that point. But
+`P2C-02` shows "Enabled for 00:00:23" at 15:56:28, which points to about
+15:56:05. The few seconds between the two are not explained. A
 request to `:3002` that was in flight at that moment was reset, because its
 connection had no pf state (likely, not tested). With `max_fails=1`, that
 single failure marked B down for `fail_timeout=10s`. A was already stopped,
