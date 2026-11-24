@@ -15,7 +15,7 @@ analysis without cloud hosting.
 | Mac 1 | Navodit | Private DNS and test client | `10.7.4.108` | UDP/TCP 53 | Managed private DNS |
 | Mac 2 | Sarvesh | HTTPS edge, reverse proxy, load balancer | `10.7.6.184` | TCP 80 and 443 | Application load balancer |
 | Mac 3 | Trishit | Backend A and backup DNS | `10.7.30.194` | TCP 3001; UDP/TCP 53 (backup DNS) | Application server A |
-| Mac 4 | Husain | Backend B and test client | `10.7.3.254` | TCP 3002; TCP 80 and 443 (standby edge) | Application server B |
+| Mac 4 | Husain | Backend B, standby HTTPS edge, and test client | `10.7.3.254` | TCP 3002; TCP 80 and 443 (standby edge) | Application server B |
 
 These addresses were recorded on 28 September 2026 and all four were
 rechecked on 23 November 2026. All four machines use
@@ -23,9 +23,11 @@ rechecked on 23 November 2026. All four machines use
 The [IP and service inventory](01_architecture/ip_table.md) includes interfaces,
 masks, MAC addresses, and collection commands.
 
-Both `app.teamX.test` and `api.teamX.test` resolve to Mac 2 with a configured
-60-second TTL. They use the same NGINX server block and backend pool. DNS
-returns the edge address; NGINX selects the backend for each proxied request.
+Both `app.teamX.test` and `api.teamX.test` resolve to Mac 2. Phase 1 used a
+60-second TTL; Phase 2 lowered it to 30 seconds and added Mac 3 as a backup
+resolver with the same records. They use the same NGINX server block and
+backend pool. DNS returns the edge address; NGINX selects the backend for each
+proxied request.
 
 For a fresh connection, the request follows these steps:
 
@@ -50,16 +52,18 @@ CN/
 ├── 02_config/
 ├── 03_backend_code/
 ├── 04_evidence/
-└── 06_phase1_checklists/
+├── 06_phase1_checklists/
+└── 07_phase2_report/
 ```
 
 | Location | Contents |
 | --- | --- |
 | [01_architecture](01_architecture/) | Architecture document, topology, IP/service table, and request-flow diagrams |
-| [02_config](02_config/) | dnsmasq and NGINX configuration, TLS setup notes, public root CA, and edge setup helper |
+| [02_config](02_config/) | dnsmasq and NGINX configuration, TLS setup notes, public root CA, and edge setup helper; Phase 2 scripts, snapshots, and runbook in [02_config/phase2](02_config/phase2/) |
 | [03_backend_code](03_backend_code/) | Shared Python backend and A/B launch instructions |
-| [04_evidence](04_evidence/) | Saved screenshots and original packet captures, grouped by rubric task |
-| [06_phase1_checklists](06_phase1_checklists/team_overview.md) | Team progress, role guides, remaining checks, demonstration order, and viva preparation |
+| [04_evidence](04_evidence/) | Saved screenshots and original packet captures, grouped by rubric task; Phase 2 folders start with `P2_` |
+| [06_phase1_checklists](06_phase1_checklists/team_overview.md) | Phase 1 archive: team progress, role guides, demonstration order, and viva preparation |
+| [07_phase2_report](07_phase2_report/final_report.md) | Phase 2 final report |
 
 ## Requirements and shared setup
 
@@ -129,7 +133,9 @@ NGINX redirects HTTP on port 80 to HTTPS. It enables HTTP/2 for compatible
 clients and TLS 1.2/1.3; the upstream hop is plaintext HTTP/1.1. Round-robin
 selection distributes requests between A and B. Passive failure handling uses
 `max_fails=1`, `fail_timeout=10s`, a two-second connect timeout, and configured
-upstream retry conditions. DNS and the edge remain single points of failure.
+upstream retry conditions. Since Phase 2, DNS has a backup resolver on Mac 3,
+but Mac 2's edge is still a single point of failure: the standby edge on Mac 4
+takes over only through a planned DNS change.
 See [NGINX's balancing documentation](https://nginx.org/en/docs/http/load_balancing.html)
 for the selection and passive failure model.
 
@@ -197,11 +203,12 @@ wrong destination port. Each demonstration must show the failing layer and
 restoration. One stopped backend should leave service available through the
 other; both stopped backends produce an upstream failure at the reachable edge.
 
-The team checklist records the Phase 1 gate and saved evidence. It still lists
-a client lookup of `api.teamX.test` and a Backend A stop/recovery demonstration
-from Mac 1 or Mac 4 as pending, along with final packaging and rehearsal.
-Use that checklist for current progress; this README does not certify a live
-demonstration or mark those items complete.
+The Phase 1 checklist (now an archive) records the Phase 1 gate and saved
+evidence. It lists two items as pending: a client lookup of `api.teamX.test`,
+and a Backend A stop/recovery demonstration from Mac 1 or Mac 4. The second is
+now covered from Mac 1 by Phase 2's `P2D-01` to `P2D-03`. For the first, the
+Phase 2 evidence audit on #20 found an `api.teamX.test` lookup only from Mac 1
+itself (`B-04`). This README does not certify a live demonstration.
 
 For the protocol walkthrough, open the
 [TLS 1.2 capture](04_evidence/G_protocol_flow/G_capture3_tls12.pcapng) or
@@ -211,6 +218,23 @@ data. HTTP headers are visible in client output; HTTPS payloads are encrypted
 in the capture. TLS 1.3 also encrypts the certificate message. A client capture
 does not necessarily include the separate edge-to-backend hop on a switched LAN.
 
-Phase 2 adds backup DNS, TTL changes, backend isolation, further failover,
-edge migration, troubleshooting, and a final report. Those extensions belong
-to the later review and are outside this Phase 1 documentation update.
+### Phase 2 (Review 2)
+
+Review 2 awards 40 team marks plus 10 individual viva marks per student. The
+[final report](07_phase2_report/final_report.md) lists every test with its
+result and evidence path, and section 10 of the
+[architecture document](01_architecture/architecture_doc.md#10-phase-2-architecture)
+describes the Phase 2 design. LAN addresses were rechecked for Phase 2 in
+[P2_lan_recheck](04_evidence/P2_lan_recheck/).
+
+| Review 2 area | Marks | Deliverable and evidence location |
+| --- | ---: | --- |
+| Resilience and HA failover (Ext A, B, D) | 15 | [Report results](07_phase2_report/final_report.md#2-resilience-tests-and-results), [backup DNS](04_evidence/P2_A_backup_dns/), [TTL and flush](04_evidence/P2_B_dns_ttl/), [HA failover and SPOF analysis](04_evidence/P2_D_ha_failover/), [DNS and edge snapshots](02_config/phase2/snapshots/) |
+| Service isolation and edge migration (Ext C, E) | 10 | [pf isolation and rollback](04_evidence/P2_C_service_isolation/), [edge cutover and notes](04_evidence/P2_E_edge_migration/), [standby TLS notes](02_config/phase2/standby-tls-notes.md), [pf and standby snapshots](02_config/phase2/snapshots/) |
+| Troubleshooting challenge (Ext F) | 10 | [4-layer runbook](02_config/phase2/troubleshooting_runbook.md), [mock drill findings](04_evidence/P2_F_troubleshooting/drill_findings.md) |
+| Final report | 5 | [07_phase2_report/final_report.md](07_phase2_report/final_report.md) |
+| Individual Phase 2 viva | 10 | [Architecture document, section 10](01_architecture/architecture_doc.md#10-phase-2-architecture), [report learning summary](07_phase2_report/final_report.md#4-learning-summary) |
+
+Phase 1 configs in `02_config/` are kept unchanged. Each Phase 2 change is
+made by a script in [02_config/phase2](02_config/phase2/), and its live
+config is committed as a snapshot.
